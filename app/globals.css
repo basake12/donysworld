@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Gold & Black Theme */
+    --background: 0 0% 4%;
+    --foreground: 45 80% 85%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 45 80% 85%;
+
+    --popover: 0 0% 7%;
+    --popover-foreground: 45 80% 85%;
+
+    --primary: 45 65% 52%;
+    --primary-foreground: 0 0% 4%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 45 80% 85%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 45 20% 55%;
+
+    --accent: 45 65% 52%;
+    --accent-foreground: 0 0% 4%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 45 30% 18%;
+    --input: 45 30% 18%;
+    --ring: 45 65% 52%;
+
+    --radius: 0.625rem;
+
+    /* Custom gold shades */
+    --gold-light: 45 80% 65%;
+    --gold: 45 65% 52%;
+    --gold-dark: 45 55% 38%;
+    --gold-muted: 45 30% 25%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(ellipse at top, hsl(45 65% 52% / 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom right, hsl(45 65% 52% / 0.03) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--gold-muted));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--gold));
+  }
+}
+
+@layer utilities {
+  /* Gold gradient text */
+  .text-gold-gradient {
+    @apply bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-600 bg-clip-text text-transparent;
+  }
+
+  /* Gold border glow */
+  .gold-glow {
+    box-shadow: 0 0 20px hsl(45 65% 52% / 0.3);
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-900/20;
+  }
+
+  /* Gold shimmer animation */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--card)) 0%,
+      hsl(45 65% 52% / 0.15) 50%,
+      hsl(var(--card)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Blurred face */
+  .face-blurred {
+    filter: blur(12px);
+    transition: filter 0.4s ease;
+  }
+
+  .face-revealed {
+    filter: blur(0px);
+    transition: filter 0.4s ease;
+  }
+}
+/* ── PERFORMANCE ─────────────────────────────── */
+
+/* GPU-accelerate all transitions */
+.card-hover {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+img {
+  transform: translateZ(0);
+}
+
+/* Faster shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Face blur — GPU composited */
+.face-blurred-overlay {
+  transform: translateZ(0);
+  will-change: opacity;
+  backface-visibility: hidden;
+}

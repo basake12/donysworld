@@ -1,0 +1,67 @@
+# ─── Environment variables ───────────────────
+# NEVER commit these — contains database passwords and secret keys
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+
+# ─── Dependencies ─────────────────────────────
+node_modules
+.pnp
+.pnp.js
+
+# ─── Next.js build output ─────────────────────
+.next
+out
+build
+
+# ─── Prisma generated client ──────────────────
+/generated/prisma
+prisma/generated
+
+# ─── PWA generated files ──────────────────────
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/worker-*.js
+public/worker-*.js.map
+public/fallback-*.js
+public/fallback-*.js.map
+
+# ─── Logs ─────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── OS files ─────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Editor ───────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── TypeScript ───────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Misc ─────────────────────────────────────
+.vercel
+.turbo
+*.pem
