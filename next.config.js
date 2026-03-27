@@ -1,34 +1,14 @@
-const withPWA = require("next-pwa")({
+const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "supabase-images",
-        expiration: { maxEntries: 200, maxAgeSeconds: 86400 },
-      },
-    },
-    {
-      urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "unsplash-images",
-        expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
-      },
-    },
-    {
-      urlPattern: /\/_next\/static\/.*/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "next-static",
-        expiration: { maxEntries: 500, maxAgeSeconds: 604800 },
-      },
-    },
-  ],
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
+  workboxOptions: {
+    disableDevLogs: true,
+  },
 });
 
 /** @type {import('next').NextConfig} */
@@ -67,4 +47,6 @@ const nextConfig = {
   poweredByHeader: false,
 };
 
-module.exports = withPWA(nextConfig);
+module.exports = withPWA(nextConfig);git add next.config.js package.json
+git commit -m "fix: switch to @ducanh2912/next-pwa for turbopack compatibility"
+git push
