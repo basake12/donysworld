@@ -33,7 +33,6 @@ const withPWA = require("next-pwa")({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  turbopack: {},
   images: {
     remotePatterns: [
       {
@@ -59,6 +58,8 @@ const nextConfig = {
         "localhost:3000",
         "192.168.1.187:3000",
         "*.vercel.app",
+        "donysworld.com",
+        "www.donysworld.com",
       ],
     },
   },
