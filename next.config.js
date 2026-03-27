@@ -47,6 +47,4 @@ const nextConfig = {
   poweredByHeader: false,
 };
 
-module.exports = withPWA(nextConfig);git add next.config.js package.json
-git commit -m "fix: switch to @ducanh2912/next-pwa for turbopack compatibility"
-git push
+module.exports = withPWA(nextConfig);
