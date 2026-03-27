@@ -4,7 +4,6 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
   workboxOptions: {
     disableDevLogs: true,
@@ -13,6 +12,9 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Required: tells Next.js 16 we acknowledge the webpack/turbopack mix
+  turbopack: {},
+
   images: {
     remotePatterns: [
       {
