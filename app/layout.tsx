@@ -87,7 +87,7 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               var _smartsupp = _smartsupp || {};
-              _smartsupp.key = 'YOUR_SMARTSUPP_KEY';
+              _smartsupp.key = '261f14fe96a46a6639d799bf91eb91f0766815c3';
               window.smartsupp||(function(d) {
                 var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
                 s=d.getElementsByTagName('script')[0];
