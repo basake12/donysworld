@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import Script from "next/script";
 import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { auth } from "@/lib/auth";
+import Smartsupp from "@/components/smartsupp";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -77,28 +77,7 @@ export default async function RootLayout({
           </SessionProvider>
         </ThemeProvider>
 
-        <Script
-          id="smartsupp"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              var _smartsupp = _smartsupp || {};
-              _smartsupp.key = '261f14fe96a46a6639d799bf91eb91f0766815c3';
-              window.smartsupp||(function(d) {
-                var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-                s=d.getElementsByTagName('script')[0];c=d.createElement('script');
-                c.type='text/javascript';c.charset='utf-8';c.async=true;
-                c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);
-              })(document);
-            `,
-          }}
-        />
-        <noscript>
-          Powered by{" "}
-          <a href="https://www.smartsupp.com" target="_blank" rel="noopener noreferrer">
-            Smartsupp
-          </a>
-        </noscript>
+        <Smartsupp />
       </body>
     </html>
   );
