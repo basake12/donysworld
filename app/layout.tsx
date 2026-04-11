@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)",  color: "#C9A84C" },
+    { media: "(prefers-color-scheme: dark)", color: "#C9A84C" },
     { media: "(prefers-color-scheme: light)", color: "#B8860B" },
   ],
   width: "device-width",
@@ -77,10 +77,6 @@ export default async function RootLayout({
           </SessionProvider>
         </ThemeProvider>
 
-        {/* ── SMARTSUPP LIVE CHAT ──────────────────────────────────────
-            Replace 'YOUR_SMARTSUPP_KEY' with your key from:
-            Smartsupp Dashboard → Settings → Chat box → Chat code
-        ────────────────────────────────────────────────────────────── */}
         <Script
           id="smartsupp"
           strategy="afterInteractive"
@@ -90,15 +86,19 @@ export default async function RootLayout({
               _smartsupp.key = '261f14fe96a46a6639d799bf91eb91f0766815c3';
               window.smartsupp||(function(d) {
                 var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
-                s=d.getElementsByTagName('script')[0];
-                c=d.createElement('script');
+                s=d.getElementsByTagName('script')[0];c=d.createElement('script');
                 c.type='text/javascript';c.charset='utf-8';c.async=true;
-                c.src='https://www.smartsupp.com/loader.js?'+_smartsupp.key;
-                s.parentNode.insertBefore(c,s);
+                c.src='https://www.smartsuppchat.com/loader.js?';s.parentNode.insertBefore(c,s);
               })(document);
             `,
           }}
         />
+        <noscript>
+          Powered by{" "}
+          <a href="https://www.smartsupp.com" target="_blank" rel="noopener noreferrer">
+            Smartsupp
+          </a>
+        </noscript>
       </body>
     </html>
   );
