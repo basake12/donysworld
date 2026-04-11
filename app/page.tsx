@@ -17,23 +17,22 @@ const ROLE_REDIRECTS: Record<Role, string> = {
   ADMIN:  "/admin/dashboard",
 };
 
+export const revalidate = 60;
+
 export default async function HomePage() {
   const session = await auth();
   if (session?.user) redirect(ROLE_REDIRECTS[session.user.role]);
 
-  const [modelCount, stateCount, offerCount] = await Promise.all([
-    prisma.modelProfile.count({ where: { status: "ACTIVE" } }).catch(() => 127),
-    prisma.modelProfile
-      .findMany({ where: { status: "ACTIVE" }, select: { state: true }, distinct: ["state"] })
-      .then((r) => r.length).catch(() => 24),
-    prisma.offer.count({ where: { status: { in: ["COMPLETED", "ACCEPTED"] } } }).catch(() => 2400),
-  ]);
+  // Only offer count is live — everything else is fixed
+  const offerCount = await prisma.offer
+    .count({ where: { status: { in: ["COMPLETED", "ACCEPTED"] } } })
+    .catch(() => 2400);
 
   const STATS = [
-    { value: `${modelCount}+`,  label: "Verified Models",   icon: Users },
-    { value: `${stateCount}`,   label: "States Covered",    icon: MapPin },
+    { value: "500+",  label: "Verified Models",  icon: Users },
+    { value: "36+",   label: "States Covered",   icon: MapPin },
     { value: `${Math.max(offerCount, 1000).toLocaleString()}+`, label: "Successful Meets", icon: TrendingUp },
-    { value: "100%",            label: "ID Verified",        icon: Shield },
+    { value: "100%",  label: "ID Verified",       icon: Shield },
   ];
 
   return (
@@ -43,30 +42,32 @@ export default async function HomePage() {
 
       <div className="min-h-screen bg-background overflow-x-hidden">
 
-        {/* ── NAVBAR ──────────────────────────── */}
-        <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-5 py-3.5 bg-black/50 backdrop-blur-xl border-b border-white/5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
-              <Crown className="h-4 w-4 text-gold" />
+        {/* ── NAVBAR ──────────────────────────────────────────────────── */}
+        <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 bg-black/50 backdrop-blur-xl border-b border-white/5">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
+              <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gold" />
             </div>
-            <span className="text-lg font-black text-gold-gradient font-playfair">
+            {/* whitespace-nowrap stops the two-line wrap on small screens */}
+            <span className="text-base sm:text-lg font-black text-gold-gradient font-playfair whitespace-nowrap">
               Dony&apos;s World
             </span>
           </Link>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Button asChild variant="ghost" size="sm"
-              className="text-white/60 hover:text-white hover:bg-white/10 text-sm h-9">
+              className="text-white/60 hover:text-white hover:bg-white/10 text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4">
               <Link href="/login">Sign In</Link>
             </Button>
             <Button asChild size="sm"
-              className="bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl px-5 h-9">
+              className="bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl text-xs sm:text-sm h-8 sm:h-9 px-4 sm:px-5">
               <Link href="/register">Join Now</Link>
             </Button>
           </div>
         </nav>
 
-        {/* ── HERO ────────────────────────────── */}
-        <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-5 pt-16 pb-12 overflow-hidden">
+        {/* ── HERO ────────────────────────────────────────────────────── */}
+        <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-20 pb-12 overflow-hidden">
 
           {/* Radial glow */}
           <div className="absolute inset-0 pointer-events-none"
@@ -79,69 +80,72 @@ export default async function HomePage() {
               backgroundSize: "48px 48px",
             }} />
 
-          {/* Verified pill */}
-          <div className="relative inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/8 px-4 py-1.5 text-[11px] text-gold font-black tracking-widest uppercase mb-7 animate-fade-in">
-            <div className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+          {/* Verified pill — clamp text so it never overflows */}
+          <div className="relative inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/8 px-3 sm:px-4 py-1.5 text-[10px] sm:text-[11px] text-gold font-black tracking-wider sm:tracking-widest uppercase mb-6 sm:mb-7 animate-fade-in max-w-[90vw] text-center">
+            <div className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse shrink-0" />
             Nigeria&apos;s #1 Verified Model Platform
           </div>
 
-          {/* Headline */}
-          <h1 className="relative text-5xl sm:text-7xl md:text-8xl font-black leading-[0.88] tracking-tight mb-5 animate-slide-up font-playfair">
+          {/* Headline — gracefully scales from xs to xl screens */}
+          <h1 className="relative font-black leading-[0.88] tracking-tight mb-5 animate-slide-up font-playfair
+                         text-5xl xs:text-6xl sm:text-7xl md:text-8xl">
             <span className="text-gold-gradient">Dony&apos;s</span>
             <br />
             <span className="text-foreground">World</span>
           </h1>
 
-          <p className="relative text-sm sm:text-base text-white/50 max-w-xs sm:max-w-sm mb-8 leading-relaxed animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            Connect with verified models near you — private, fast, and secured by Dony&apos;s Coins.
+          <p className="relative text-sm sm:text-base text-white/50 max-w-[280px] sm:max-w-sm mb-8 leading-relaxed animate-fade-in"
+            style={{ animationDelay: "0.1s" }}>
+            Connect with verified models near you  private, fast, and secured.
           </p>
 
-          {/* CTAs */}
-          <div className="relative flex flex-col sm:flex-row gap-3 mb-12 animate-fade-in w-full max-w-xs sm:max-w-none sm:w-auto" style={{ animationDelay: "0.15s" }}>
+          {/* CTAs — stack on mobile, row on sm+ */}
+          <div className="relative flex flex-col sm:flex-row gap-3 mb-10 sm:mb-12 animate-fade-in w-full max-w-[320px] sm:max-w-none sm:w-auto"
+            style={{ animationDelay: "0.15s" }}>
             <Button asChild size="lg"
-              className="h-12 px-8 bg-gold-gradient text-black font-black hover:opacity-90 gold-glow rounded-xl text-sm gap-2">
+              className="h-12 px-8 bg-gold-gradient text-black font-black hover:opacity-90 gold-glow rounded-xl text-sm gap-2 w-full sm:w-auto">
               <Link href="/register">
                 Join as Client
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline"
-              className="h-12 px-8 border-white/10 text-white/70 hover:bg-white/5 hover:text-white hover:border-gold/30 rounded-xl text-sm">
+              className="h-12 px-8 border-white/10 text-white/70 hover:bg-white/5 hover:text-white hover:border-gold/30 rounded-xl text-sm w-full sm:w-auto">
               <Link href="/register?role=model">Become a Model</Link>
             </Button>
           </div>
 
-          {/* Stats */}
-          <div className="relative w-full max-w-lg animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Stats grid — 2-col on mobile, 4-col on sm+ */}
+          <div className="relative w-full max-w-sm sm:max-w-lg animate-fade-in px-1"
+            style={{ animationDelay: "0.2s" }}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
               {STATS.map(({ value, label, icon: Icon }) => (
-                <div key={label} className="rounded-2xl border border-white/5 bg-white/3 backdrop-blur-sm p-4 text-center space-y-1.5">
+                <div key={label}
+                  className="rounded-2xl border border-white/5 bg-white/3 backdrop-blur-sm p-3 sm:p-4 text-center space-y-1.5">
                   <div className="flex justify-center">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold/10">
-                      <Icon className="h-3.5 w-3.5 text-gold" />
+                    <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg bg-gold/10">
+                      <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-gold" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-2xl font-black text-gold-gradient">{value}</p>
-                  <p className="text-[10px] text-white/40 font-medium leading-tight">{label}</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-black text-gold-gradient">{value}</p>
+                  <p className="text-[9px] sm:text-[10px] text-white/40 font-medium leading-tight">{label}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── SAFETY BANNER (inspired by reference) ── */}
-        <section className="px-5 py-16 border-t border-white/5">
+        {/* ── SAFETY BANNER ───────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-14 sm:py-16 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
             <div className="rounded-3xl overflow-hidden border border-gold/15 relative">
-              {/* Gold left accent */}
               <div className="absolute inset-y-0 left-0 w-1.5 bg-gold-gradient" />
 
-              <div className="flex flex-col md:flex-row items-center gap-8 p-7 md:p-10 bg-card">
-                {/* Left text */}
-                <div className="flex-1 space-y-5">
+              <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8 p-6 sm:p-8 md:p-10 bg-card">
+                <div className="flex-1 space-y-5 w-full">
                   <div>
                     <p className="text-[10px] font-black text-gold tracking-widest uppercase mb-2">Trust & Safety</p>
-                    <h2 className="text-3xl sm:text-4xl font-black text-foreground font-playfair leading-tight">
+                    <h2 className="text-2xl sm:text-3xl sm:text-4xl font-black text-foreground font-playfair leading-tight">
                       Your Safety<br />
                       <span className="text-gold-gradient">Comes First</span>
                     </h2>
@@ -158,26 +162,27 @@ export default async function HomePage() {
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gold/15">
                           <Icon className="h-3 w-3 text-gold" />
                         </div>
-                        <span className="text-sm text-muted-foreground">{text}</span>
+                        <span className="text-xs sm:text-sm text-muted-foreground">{text}</span>
                       </div>
                     ))}
                   </div>
 
-                  <Button asChild className="bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl h-11 px-7">
+                  <Button asChild
+                    className="bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl h-11 px-7 w-full sm:w-auto">
                     <Link href="/register">Get Started Free</Link>
                   </Button>
                 </div>
 
-                {/* Right: large stat cards */}
+                {/* Stat cards — 2-col always */}
                 <div className="grid grid-cols-2 gap-3 w-full md:w-64 shrink-0">
                   {[
-                    { value: `${modelCount}+`, label: "Active Models", color: "border-gold/20 bg-gold/5" },
-                    { value: "24/7",          label: "Available",      color: "border-emerald-500/20 bg-emerald-500/5" },
-                    { value: `${stateCount}`, label: "States",         color: "border-blue-500/20 bg-blue-500/5" },
-                    { value: "0",             label: "Scam Reports",   color: "border-violet-500/20 bg-violet-500/5" },
+                    { value: "500+", label: "Active Models", color: "border-gold/20 bg-gold/5" },
+                    { value: "24/7", label: "Available",     color: "border-emerald-500/20 bg-emerald-500/5" },
+                    { value: "36+",  label: "States",        color: "border-blue-500/20 bg-blue-500/5" },
+                    { value: "0",    label: "Scam Reports",  color: "border-violet-500/20 bg-violet-500/5" },
                   ].map(({ value, label, color }) => (
-                    <div key={label} className={`rounded-2xl border p-4 text-center ${color}`}>
-                      <p className="text-2xl font-black text-foreground">{value}</p>
+                    <div key={label} className={`rounded-2xl border p-3 sm:p-4 text-center ${color}`}>
+                      <p className="text-xl sm:text-2xl font-black text-foreground">{value}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">{label}</p>
                     </div>
                   ))}
@@ -187,24 +192,25 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── HOW IT WORKS ────────────────────── */}
-        <section className="px-5 py-16 border-t border-white/5">
+        {/* ── HOW IT WORKS ────────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-14 sm:py-16 border-t border-white/5">
           <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-10">
+            <div className="text-center mb-8 sm:mb-10">
               <p className="text-[10px] font-black text-gold tracking-widest uppercase mb-2">Simple Process</p>
               <h2 className="text-2xl sm:text-3xl font-black text-foreground font-playfair">How It Works</h2>
             </div>
 
             <div className="space-y-3">
               {[
-                { step: "01", icon: Users,   title: "Create Your Account",  desc: "Sign up as a client in seconds. Age verification required." },
-                { step: "02", icon: Coins,   title: "Fund Your Wallet",     desc: "1 Dony's Coin = ₦1. Fund securely via bank transfer." },
-                { step: "03", icon: MapPin,  title: "Browse Local Models",  desc: "We detect your location and show verified models near you." },
-                { step: "04", icon: Zap,     title: "Make an Offer",        desc: "Send a coin offer. Model accepts → you get a coupon receipt." },
+                { step: "01", icon: Users,  title: "Create Your Account", desc: "Sign up as a client in seconds. Age verification required." },
+                { step: "02", icon: Coins,  title: "Fund Your Wallet",    desc: "1 Dony's Coin = ₦1. Fund securely via bank transfer." },
+                { step: "03", icon: MapPin, title: "Browse Local Models", desc: "We detect your location and show verified models near you." },
+                { step: "04", icon: Zap,    title: "Make an Offer",       desc: "Send a coin offer. Model accepts → you get a coupon receipt." },
               ].map(({ step, icon: Icon, title, desc }) => (
-                <div key={step} className="flex gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5 hover:border-gold/20 transition-colors group">
+                <div key={step}
+                  className="flex gap-3 sm:gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5 hover:border-gold/20 transition-colors group">
                   <div className="shrink-0 flex flex-col items-center gap-2">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10 border border-gold/20 group-hover:bg-gold/15 transition-colors">
+                    <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gold/10 border border-gold/20 group-hover:bg-gold/15 transition-colors">
                       <Icon className="h-4 w-4 text-gold" />
                     </div>
                     <span className="text-[10px] font-black text-gold/30">{step}</span>
@@ -219,33 +225,36 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── CONNECT BANNER ──────────────────── */}
-        <section className="px-5 py-16 border-t border-white/5">
+        {/* ── CONNECT BANNER ──────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-14 sm:py-16 border-t border-white/5">
           <div className="max-w-2xl mx-auto">
             <div className="rounded-3xl border border-gold/20 bg-card overflow-hidden">
               <div className="h-1 bg-gold-gradient" />
-              <div className="p-8 sm:p-10 text-center space-y-5">
-                <h2 className="text-2xl sm:text-3xl font-black text-foreground font-playfair">
+              <div className="p-6 sm:p-8 md:p-10 text-center space-y-5">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground font-playfair">
                   Connect with Verified Models<br />
                   <span className="text-gold-gradient">In Your City</span>
                 </h2>
-                <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-xs sm:max-w-sm mx-auto">
                   {[
                     { icon: Shield,       label: "No Scams" },
                     { icon: Lock,         label: "Private" },
                     { icon: CheckCircle2, label: "Verified" },
                   ].map(({ icon: Icon, label }) => (
-                    <div key={label} className="rounded-xl bg-secondary border border-border py-3 px-2 text-center space-y-1.5">
-                      <Icon className="h-4 w-4 text-gold mx-auto" />
-                      <p className="text-[10px] font-bold text-muted-foreground">{label}</p>
+                    <div key={label}
+                      className="rounded-xl bg-secondary border border-border py-3 px-2 text-center space-y-1.5">
+                      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gold mx-auto" />
+                      <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground">{label}</p>
                     </div>
                   ))}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                  <Button asChild className="h-11 px-8 bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl gold-glow">
+                  <Button asChild
+                    className="h-11 px-8 bg-gold-gradient text-black font-black hover:opacity-90 rounded-xl gold-glow w-full sm:w-auto">
                     <Link href="/register">Join as Client</Link>
                   </Button>
-                  <Button asChild variant="outline" className="h-11 px-8 border-gold/30 text-gold hover:bg-gold/8 rounded-xl">
+                  <Button asChild variant="outline"
+                    className="h-11 px-8 border-gold/30 text-gold hover:bg-gold/8 rounded-xl w-full sm:w-auto">
                     <Link href="/register?role=model">Register as Model</Link>
                   </Button>
                 </div>
@@ -254,8 +263,8 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── FOOTER ──────────────────────────── */}
-        <footer className="border-t border-white/5 px-5 py-8">
+        {/* ── FOOTER ──────────────────────────────────────────────────── */}
+        <footer className="border-t border-white/5 px-4 sm:px-6 py-8">
           <div className="max-w-2xl mx-auto flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
               <Crown className="h-4 w-4 text-gold/60" />
@@ -269,6 +278,7 @@ export default async function HomePage() {
             </div>
           </div>
         </footer>
+
       </div>
     </>
   );
