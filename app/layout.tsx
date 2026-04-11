@@ -1,20 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "sonner";
+import Script from "next/script";
+import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/shared/session-provider";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import { auth } from "@/lib/auth";
 
 const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
   display: "swap",
-  preload: true,
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Dony's World",
-  description: "Connect with verified models in your state",
+  title: "Dony's World — Connect with Verified Models",
+  description:
+    "The premium platform where clients meet verified models across Nigeria. Secure, private, powered by Dony's Coins.",
   manifest: "/manifest.json",
+  icons: {
+    apple: "/icons/icon-192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -29,27 +41,64 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#C9A84C",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)",  color: "#C9A84C" },
+    { media: "(prefers-color-scheme: light)", color: "#B8860B" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // FIX: session is fetched but not passed as prop — SessionProvider doesn't accept it
-  await auth();
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await auth();
+
   return (
-    <html lang="en" className="dark">
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <meta name="apple-touch-fullscreen" content="yes" />
-      </head>
-      <body className={`${inter.className} bg-background text-foreground antialiased`}>
-        <SessionProvider>
-          {children}
-          <Toaster richColors theme="dark" position="top-center" />
-        </SessionProvider>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${playfair.variable}`}
+    >
+      <body className="bg-background text-foreground antialiased font-sans">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange={false}
+        >
+          <SessionProvider session={session}>
+            {children}
+            <Toaster />
+          </SessionProvider>
+        </ThemeProvider>
+
+        {/* ── SMARTSUPP LIVE CHAT ──────────────────────────────────────
+            Replace 'YOUR_SMARTSUPP_KEY' with your key from:
+            Smartsupp Dashboard → Settings → Chat box → Chat code
+        ────────────────────────────────────────────────────────────── */}
+        <Script
+          id="smartsupp"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              var _smartsupp = _smartsupp || {};
+              _smartsupp.key = 'YOUR_SMARTSUPP_KEY';
+              window.smartsupp||(function(d) {
+                var s,c,o=smartsupp=function(){ o._.push(arguments)};o._=[];
+                s=d.getElementsByTagName('script')[0];
+                c=d.createElement('script');
+                c.type='text/javascript';c.charset='utf-8';c.async=true;
+                c.src='https://www.smartsupp.com/loader.js?'+_smartsupp.key;
+                s.parentNode.insertBefore(c,s);
+              })(document);
+            `,
+          }}
+        />
       </body>
     </html>
   );

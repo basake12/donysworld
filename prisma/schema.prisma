@@ -98,6 +98,12 @@ enum WithdrawalStatus {
   REJECTED
 }
 
+enum BlocklistIdentifierType {
+  EMAIL
+  PHONE
+  NAME
+}
+
 // ─────────────────────────────────────────────
 // USER
 // ─────────────────────────────────────────────
@@ -175,14 +181,17 @@ model ModelProfile {
   allowFaceReveal   Boolean     @default(false)
   profilePictureUrl String
   isFaceBlurred     Boolean     @default(true)
+
   gallery     ModelGallery[]
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   ModelDocument[]
   charges     ModelCharge[]
   faceReveals FaceReveal[]
+  blocklist   ModelBlocklist[]
 
   @@map("model_profiles")
 }
+
 // ─────────────────────────────────────────────
 // MODEL GALLERY
 // ─────────────────────────────────────────────
@@ -235,6 +244,25 @@ model ModelCharge {
 }
 
 // ─────────────────────────────────────────────
+// MODEL BLOCKLIST
+// ─────────────────────────────────────────────
+
+model ModelBlocklist {
+  id             String                  @id @default(cuid())
+  modelProfileId String
+  identifierType BlocklistIdentifierType
+  identifier     String
+  note           String?
+  createdAt      DateTime                @default(now())
+
+  modelProfile ModelProfile @relation(fields: [modelProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([modelProfileId, identifierType, identifier])
+  @@index([modelProfileId])
+  @@map("model_blocklist")
+}
+
+// ─────────────────────────────────────────────
 // MODEL BANK ACCOUNT
 // ─────────────────────────────────────────────
 
@@ -243,9 +271,9 @@ model ModelBankAccount {
   modelUserId   String
   bankName      String
   accountNumber String
-  accountName   String   // must match user fullName exactly
+  accountName   String
   isPreferred   Boolean  @default(false)
-  isLocked      Boolean  @default(true)  // locked after binding — only admin can delete
+  isLocked      Boolean  @default(true)
   createdAt     DateTime @default(now())
 
   user              User                @relation(fields: [modelUserId], references: [id], onDelete: Cascade)
@@ -405,7 +433,7 @@ model Notification {
 }
 
 // ─────────────────────────────────────────────
-// BANK ACCOUNT (admin configures for client funding)
+// BANK ACCOUNT
 // ─────────────────────────────────────────────
 
 model BankAccount {

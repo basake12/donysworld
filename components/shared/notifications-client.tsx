@@ -6,24 +6,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Bell,
-  BellOff,
-  CheckCheck,
-  Loader2,
-  HandCoins,
-  Wallet,
-  ShieldCheck,
-  User,
-  Info,
+  Bell, BellOff, CheckCheck, Loader2,
+  HandCoins, Wallet, ShieldCheck, User, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-// ─────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────
+// ─── TYPES ──────────────────────────────────────
 
 interface Notification {
   id: string;
@@ -38,49 +28,53 @@ interface NotificationsClientProps {
   notifications: Notification[];
 }
 
-// ─────────────────────────────────────────────
-// ICON RESOLVER
-// ─────────────────────────────────────────────
+// ─── HELPERS ────────────────────────────────────
 
-function getNotificationIcon(title: string) {
+function getIconConfig(title: string, isRead: boolean): {
+  Icon: React.ElementType;
+  bg: string;
+  text: string;
+} {
   const t = title.toLowerCase();
-  if (t.includes("offer")) return HandCoins;
-  if (t.includes("coin") || t.includes("wallet") || t.includes("redeem"))
-    return Wallet;
-  if (
-    t.includes("approved") ||
-    t.includes("rejected") ||
-    t.includes("suspended") ||
-    t.includes("reinstated")
-  )
-    return ShieldCheck;
-  if (t.includes("face") || t.includes("reveal")) return User;
-  return Info;
+
+  if (!isRead) {
+    if (t.includes("offer"))
+      return { Icon: HandCoins, bg: "bg-gold/15 border-gold/20", text: "text-gold" };
+    if (t.includes("approved") || t.includes("accepted") || t.includes("coin"))
+      return { Icon: ShieldCheck, bg: "bg-emerald-500/15 border-emerald-500/20", text: "text-emerald-400" };
+    if (t.includes("rejected") || t.includes("suspended"))
+      return { Icon: ShieldCheck, bg: "bg-destructive/15 border-destructive/20", text: "text-destructive" };
+    if (t.includes("wallet") || t.includes("redeem"))
+      return { Icon: Wallet, bg: "bg-blue-500/15 border-blue-500/20", text: "text-blue-400" };
+    if (t.includes("face") || t.includes("reveal"))
+      return { Icon: User, bg: "bg-violet-500/15 border-violet-500/20", text: "text-violet-400" };
+  }
+
+  return { Icon: Info, bg: "bg-secondary border-border", text: "text-muted-foreground" };
 }
 
-function getNotificationColor(title: string, isRead: boolean) {
-  if (isRead) return "text-muted-foreground bg-muted/50";
-  const t = title.toLowerCase();
-  if (t.includes("approved") || t.includes("accepted") || t.includes("coin"))
-    return "text-emerald-400 bg-emerald-500/10";
-  if (t.includes("rejected") || t.includes("suspended"))
-    return "text-destructive bg-destructive/10";
-  if (t.includes("offer")) return "text-gold bg-gold/10";
-  return "text-blue-400 bg-blue-500/10";
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" });
 }
 
-// ─────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────
+function formatDateLabel(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
 
-export function NotificationsClient({
-  notifications,
-}: NotificationsClientProps) {
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// ─── COMPONENT ──────────────────────────────────
+
+export function NotificationsClient({ notifications }: NotificationsClientProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [localNotifications, setLocalNotifications] =
-    useState<Notification[]>(notifications);
+  const [loading, setLoading]                   = useState(false);
+  const [localNotifications, setLocalNotifications] = useState<Notification[]>(notifications);
 
   const unreadCount = localNotifications.filter((n) => !n.isRead).length;
 
@@ -90,15 +84,10 @@ export function NotificationsClient({
     try {
       const res = await fetch("/api/notifications", { method: "PATCH" });
       if (!res.ok) throw new Error("Failed");
-      setLocalNotifications((prev) =>
-        prev.map((n) => ({ ...n, isRead: true }))
-      );
+      setLocalNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       router.refresh();
     } catch {
-      toast({
-        title: "Failed to mark notifications as read",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to mark notifications as read", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -112,28 +101,23 @@ export function NotificationsClient({
     router.refresh();
   }
 
-  // Group by date
-  const grouped = localNotifications.reduce(
-    (acc, notification) => {
-      const date = new Date(notification.createdAt).toLocaleDateString(
-        "en-NG",
-        { day: "numeric", month: "long", year: "numeric" }
-      );
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(notification);
-      return acc;
-    },
-    {} as Record<string, Notification[]>
-  );
+  // Group by date label
+  const grouped = localNotifications.reduce((acc, n) => {
+    const label = formatDateLabel(n.createdAt);
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(n);
+    return acc;
+  }, {} as Record<string, Notification[]>);
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* ── HEADER ────────────────────────────── */}
+
+      {/* ── HEADER ──────────────────────────── */}
       <PageHeader
         title="Notifications"
         description={
           unreadCount > 0
-            ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`
+            ? `${unreadCount} unread`
             : "You're all caught up"
         }
         action={
@@ -143,30 +127,28 @@ export function NotificationsClient({
               size="sm"
               onClick={markAllRead}
               disabled={loading}
-              className="border-gold/30 text-gold hover:bg-gold/10 gap-2"
+              className="border-gold/30 text-gold hover:bg-gold/10 rounded-xl gap-2 h-9"
             >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCheck className="h-4 w-4" />
-              )}
+              {loading
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <CheckCheck className="h-3.5 w-3.5" />}
               Mark all read
             </Button>
           ) : undefined
         }
       />
 
-      {/* ── UNREAD BADGE ──────────────────────── */}
+      {/* ── UNREAD COUNT PILL ───────────────── */}
       {unreadCount > 0 && (
-        <div className="flex items-center gap-2">
-          <Badge className="bg-gold/10 text-gold border border-gold/20 gap-1.5">
-            <Bell className="h-3 w-3" />
-            {unreadCount} unread
-          </Badge>
+        <div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/8 px-3 py-1.5">
+          <div className="h-2 w-2 rounded-full bg-gold animate-pulse" />
+          <span className="text-xs font-bold text-gold">
+            {unreadCount} unread notification{unreadCount > 1 ? "s" : ""}
+          </span>
         </div>
       )}
 
-      {/* ── EMPTY STATE ───────────────────────── */}
+      {/* ── EMPTY STATE ─────────────────────── */}
       {localNotifications.length === 0 ? (
         <EmptyState
           icon={BellOff}
@@ -175,80 +157,65 @@ export function NotificationsClient({
         />
       ) : (
         <div className="space-y-6">
-          {Object.entries(grouped).map(([date, items]) => (
-            <div key={date} className="space-y-2">
+          {Object.entries(grouped).map(([dateLabel, items]) => (
+            <div key={dateLabel} className="space-y-2">
+
               {/* Date label */}
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                {date}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">
+                  {dateLabel}
+                </p>
+                <div className="flex-1 h-px bg-border" />
+              </div>
 
-              {/* Notifications */}
-              <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+              {/* Notification list */}
+              <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
                 {items.map((notification) => {
-                  const Icon = getNotificationIcon(notification.title);
-                  const colorClass = getNotificationColor(
-                    notification.title,
-                    notification.isRead
-                  );
+                  const { Icon, bg, text } = getIconConfig(notification.title, notification.isRead);
 
-                  const content = (
+                  const inner = (
                     <div
                       key={notification.id}
-                      onClick={() =>
-                        !notification.isRead && markOneRead(notification.id)
-                      }
+                      onClick={() => !notification.isRead && markOneRead(notification.id)}
                       className={cn(
-                        "flex items-start gap-3 px-4 py-3.5 transition-colors",
+                        "flex items-start gap-3 px-4 py-4 transition-colors",
                         !notification.isRead
-                          ? "bg-gold/[0.03] hover:bg-gold/5 cursor-pointer"
-                          : "hover:bg-secondary/50"
+                          ? "bg-gold/[0.025] hover:bg-gold/5 cursor-pointer"
+                          : "hover:bg-secondary/40"
                       )}
                     >
                       {/* Icon */}
-                      <div
-                        className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full mt-0.5",
-                          colorClass
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
+                      <div className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border mt-0.5",
+                        bg
+                      )}>
+                        <Icon className={cn("h-4 w-4", text)} />
                       </div>
 
                       {/* Content */}
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p
-                            className={cn(
-                              "text-sm font-semibold leading-snug",
-                              notification.isRead
-                                ? "text-muted-foreground"
-                                : "text-foreground"
-                            )}
-                          >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-0.5">
+                          <p className={cn(
+                            "text-sm font-bold leading-snug",
+                            notification.isRead ? "text-muted-foreground" : "text-foreground"
+                          )}>
                             {notification.title}
                           </p>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {!notification.isRead && (
-                              <div className="h-2 w-2 rounded-full bg-gold shrink-0" />
+                              <div className="h-2 w-2 rounded-full bg-gold shrink-0 mt-0.5" />
                             )}
                             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                              {new Date(
-                                notification.createdAt
-                              ).toLocaleTimeString("en-NG", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatTime(notification.createdAt)}
                             </span>
                           </div>
                         </div>
-                        <p
-                          className={cn(
-                            "text-xs leading-relaxed",
-                            notification.isRead
-                              ? "text-muted-foreground/70"
-                              : "text-muted-foreground"
-                          )}
-                        >
+                        <p className={cn(
+                          "text-xs leading-relaxed",
+                          notification.isRead
+                            ? "text-muted-foreground/60"
+                            : "text-muted-foreground"
+                        )}>
                           {notification.message}
                         </p>
                       </div>
@@ -259,15 +226,13 @@ export function NotificationsClient({
                     <Link
                       key={notification.id}
                       href={notification.link}
-                      onClick={() =>
-                        !notification.isRead && markOneRead(notification.id)
-                      }
+                      onClick={() => !notification.isRead && markOneRead(notification.id)}
                       className="block"
                     >
-                      {content}
+                      {inner}
                     </Link>
                   ) : (
-                    <div key={notification.id}>{content}</div>
+                    <div key={notification.id}>{inner}</div>
                   );
                 })}
               </div>

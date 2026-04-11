@@ -15,6 +15,10 @@ interface FaceBlurImageProps {
   alt: string;
   blurred: boolean;
   fill?: boolean;
+  /** Required when fill={false}. Ignored when fill={true}. */
+  width?: number;
+  /** Required when fill={false}. Ignored when fill={true}. */
+  height?: number;
   className?: string;
   sizes?: string;
   priority?: boolean;
@@ -30,17 +34,19 @@ export function FaceBlurImage({
   alt,
   blurred,
   fill = false,
+  width,
+  height,
   className = "",
   sizes,
   priority = false,
   expiresAt,
 }: FaceBlurImageProps) {
-  const wrapperRef  = useRef<HTMLDivElement>(null);
-  const imgRef      = useRef<HTMLImageElement>(null);
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const [box, setBox]             = useState<FaceBox>(DEFAULT_BOX);
-  const [canvasReady, setReady]   = useState(false);
-  const [timeLeft, setTimeLeft]   = useState<string | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const imgRef     = useRef<HTMLImageElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const [box, setBox]           = useState<FaceBox>(DEFAULT_BOX);
+  const [canvasReady, setReady] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
   // ── Expiry countdown ─────────────────────────
   useEffect(() => {
@@ -72,24 +78,17 @@ export function FaceBlurImage({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Convert % box to pixel coords
     const fx = Math.round((box.x / 100) * cw);
     const fy = Math.round((box.y / 100) * ch);
     const fw = Math.round((box.w / 100) * cw);
     const fh = Math.round((box.h / 100) * ch);
 
-    // Mosaic pixel size — bigger = more pixelated
     const PIXEL = 14;
     const sw    = Math.max(1, Math.round(fw / PIXEL));
     const sh    = Math.max(1, Math.round(fh / PIXEL));
 
-    // 1. Draw full image at display size
     ctx.drawImage(img, 0, 0, cw, ch);
-
-    // 2. Scale face region DOWN to sw×sh (loses detail)
     ctx.drawImage(img, fx, fy, fw, fh, fx, fy, sw, sh);
-
-    // 3. Scale that tiny version BACK UP — no smoothing = mosaic blocks
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(canvas, fx, fy, sw, sh, fx, fy, fw, fh);
     ctx.imageSmoothingEnabled = true;
@@ -107,13 +106,12 @@ export function FaceBlurImage({
         const f   = faces[0].boundingBox;
         const iw  = img.naturalWidth  || 400;
         const ih  = img.naturalHeight || 500;
-        const pad = 0.28; // padding around detected face
+        const pad = 0.28;
         const nx  = Math.max(0,   ((f.left  / iw) - pad / 2) * 100);
         const ny  = Math.max(0,   ((f.top   / ih) - pad / 2) * 100);
         const nw  = Math.min(100 - nx, ((f.width  / iw) + pad) * 100);
         const nh  = Math.min(100 - ny, ((f.height / ih) + pad) * 100);
         setBox({ x: nx, y: ny, w: nw, h: nh });
-        // drawMosaic is called again via the box-change effect below
         return;
       }
     } catch { /* keep default */ }
@@ -139,7 +137,13 @@ export function FaceBlurImage({
         ref={imgRef as any}
         src={src}
         alt={alt}
-        fill={fill}
+        // In fill mode Next.js manages sizing via the wrapper; in non-fill
+        // mode explicit width/height are mandatory — fall back to safe defaults
+        // so the component never crashes even if the caller omits them.
+        {...(fill
+          ? { fill: true }
+          : { width: width ?? 400, height: height ?? 500 }
+        )}
         sizes={sizes ?? "(max-width: 640px) 100vw, 400px"}
         className="object-cover object-top"
         priority={priority}
@@ -159,7 +163,7 @@ export function FaceBlurImage({
           className="absolute inset-0 w-full h-full pointer-events-none"
           style={{
             opacity: canvasReady ? 1 : 0,
-            transition: "opacity 0.1s ease",
+            transition: "opacity 0.15s ease",
           }}
         />
       )}
@@ -167,10 +171,10 @@ export function FaceBlurImage({
       {/* ── Reveal expiry badge ─────────────── */}
       {!blurred && timeLeft && (
         <div
-          className="absolute top-2 right-2 rounded-full bg-black/70 border border-gold/40 px-2 py-0.5 text-[10px] text-gold font-medium backdrop-blur-sm pointer-events-none"
+          className="absolute top-2 right-2 flex items-center gap-1 rounded-xl bg-black/70 border border-gold/30 px-2 py-1 text-[10px] text-gold font-bold backdrop-blur-sm pointer-events-none"
           style={{ zIndex: 10 }}
         >
-          👁️ {timeLeft}
+          👁 {timeLeft}
         </div>
       )}
     </div>

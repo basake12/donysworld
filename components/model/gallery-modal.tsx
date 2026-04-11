@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, Images, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Eye, Images, Clock } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
 import { cn } from "@/lib/utils";
 
@@ -40,10 +39,7 @@ export function GalleryModal({
 }: GalleryModalProps) {
   const [current, setCurrent] = useState(0);
 
-  const allImages = [
-    profilePicture,
-    ...gallery.map((g) => g.imageUrl),
-  ];
+  const allImages = [profilePicture, ...gallery.map((g) => g.imageUrl)];
 
   function prev() {
     setCurrent((s) => (s === 0 ? allImages.length - 1 : s - 1));
@@ -60,28 +56,31 @@ export function GalleryModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-card border-border max-w-lg p-0 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Images className="h-4 w-4 text-gold" />
-            <span className="font-semibold text-foreground text-sm">
-              {modelName}&apos;s Gallery
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {current + 1} / {allImages.length}
-            </span>
+      <DialogContent className="bg-black border-white/10 max-w-lg p-0 overflow-hidden rounded-2xl">
+
+        {/* ── HEADER ──────────────────────────── */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 bg-black/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold/15 border border-gold/20">
+              <Images className="h-3.5 w-3.5 text-gold" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white leading-none">{modelName}</p>
+              <p className="text-[10px] text-white/40 mt-0.5">
+                {current + 1} of {allImages.length} photos
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/8 text-white/60 hover:text-white hover:bg-white/15 transition-all"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Main image */}
-        <div className="relative bg-black" style={{ height: "460px", position: "relative" }}>
+        {/* ── MAIN IMAGE ──────────────────────── */}
+        <div className="relative bg-black" style={{ height: 460 }}>
           <FaceBlurImage
             key={allImages[current]}
             src={allImages[current]}
@@ -93,85 +92,99 @@ export function GalleryModal({
             expiresAt={expiresAt}
           />
 
-          {/* Nav arrows */}
+          {/* Subtle side gradients */}
+          <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-black/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-black/40 to-transparent pointer-events-none" />
+
+          {/* ── Navigation arrows ── */}
           {allImages.length > 1 && (
             <>
               <button
                 onClick={prev}
-                className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 transition-all backdrop-blur-sm border border-white/10"
-                style={{ zIndex: 20 }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white hover:bg-black/90 border border-white/10 backdrop-blur-sm transition-all hover:scale-105 active:scale-95"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 onClick={next}
-                className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 transition-all backdrop-blur-sm border border-white/10"
-                style={{ zIndex: 20 }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white hover:bg-black/90 border border-white/10 backdrop-blur-sm transition-all hover:scale-105 active:scale-95"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </>
           )}
 
-          {/* No reveal allowed notice */}
+          {/* ── Dot indicators ── */}
+          {allImages.length > 1 && allImages.length <= 8 && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex gap-1">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrent(i)}
+                  className={cn(
+                    "rounded-full transition-all",
+                    i === current ? "w-5 h-1.5 bg-gold" : "w-1.5 h-1.5 bg-white/30"
+                  )}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* ── No reveal notice ── */}
           {isBlurred && !allowReveal && (
-            <div
-              className="absolute bottom-0 inset-x-0 bg-black/70 backdrop-blur-sm px-4 py-3 text-center"
-              style={{ zIndex: 20 }}
-            >
-              <p className="text-xs text-muted-foreground">
-                This model has not enabled face reveal
+            <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 to-transparent pt-8 pb-4 px-4 text-center">
+              <p className="text-xs text-white/50">
+                Face reveal not enabled by this model
               </p>
             </div>
           )}
 
-          {/* Reveal CTA inside gallery */}
+          {/* ── Reveal CTA ── */}
           {isBlurred && allowReveal && (
-            <div
-              className="absolute bottom-3 left-1/2 -translate-x-1/2"
-              style={{ zIndex: 20 }}
-            >
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
               <button
                 onClick={onReveal}
                 disabled={revealing}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/80 border border-gold/60 text-gold hover:bg-black/95 transition-all backdrop-blur-sm disabled:opacity-50"
+                className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-black/85 border border-gold/50 text-gold hover:bg-black hover:border-gold transition-all backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-black/50"
               >
                 <Eye className="h-4 w-4" />
-                <span className="text-xs font-bold">
-                  {revealing ? "Revealing..." : "Unlock Face · 1,000 DC · 24H access"}
+                <span className="text-xs font-black tracking-wide">
+                  {revealing ? "Revealing..." : "Unlock Face · 1,000 DC · 24H"}
                 </span>
+                <div className="flex items-center gap-1 border-l border-gold/30 pl-2.5">
+                  <Clock className="h-3 w-3 text-gold/60" />
+                  <span className="text-[10px] text-gold/70 font-bold">24H</span>
+                </div>
               </button>
             </div>
           )}
 
-          {/* Already revealed */}
+          {/* ── Revealed status ── */}
           {!isBlurred && expiresAt && (
-            <div
-              className="absolute bottom-3 left-1/2 -translate-x-1/2"
-              style={{ zIndex: 20 }}
-            >
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 border border-emerald-500/40 backdrop-blur-sm">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
+                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <Eye className="h-3.5 w-3.5 text-emerald-400" />
-                <p className="text-xs text-emerald-400 font-medium">
-                  Face revealed — expires in 24h
+                <p className="text-xs text-emerald-400 font-bold">
+                  Face Unlocked · 24h access
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Thumbnail strip */}
+        {/* ── THUMBNAIL STRIP ─────────────────── */}
         {allImages.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto px-4 py-3 border-t border-border">
+          <div className="flex gap-2 overflow-x-auto px-4 py-3 border-t border-white/8 bg-black/80 scrollbar-hide">
             {allImages.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setCurrent(i)}
                 className={cn(
-                  "relative shrink-0 h-14 w-14 rounded-lg overflow-hidden border-2 transition-all",
+                  "relative shrink-0 h-14 w-14 rounded-xl overflow-hidden border-2 transition-all duration-200",
                   i === current
-                    ? "border-gold shadow-md shadow-gold/20"
-                    : "border-border opacity-60 hover:opacity-100"
+                    ? "border-gold shadow-md shadow-gold/30 scale-105"
+                    : "border-transparent opacity-50 hover:opacity-80 hover:border-white/20"
                 )}
               >
                 <FaceBlurImage
@@ -181,6 +194,11 @@ export function GalleryModal({
                   blurred={isBlurred && i === 0}
                   sizes="56px"
                 />
+                {i === 0 && (
+                  <div className="absolute bottom-0 inset-x-0 bg-black/60 py-0.5">
+                    <span className="text-[7px] font-black text-gold/90 block text-center tracking-wider">MAIN</span>
+                  </div>
+                )}
               </button>
             ))}
           </div>

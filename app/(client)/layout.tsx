@@ -1,10 +1,9 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/shared/navbar";
-import { InstallPrompt } from "@/components/shared/install-prompt";
 import { prisma } from "@/lib/prisma";
 
-export default async function ClientLayout({
+export default async function ClientModelsLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -19,10 +18,9 @@ export default async function ClientLayout({
   return (
     <div className="min-h-screen bg-background">
       <Navbar session={session} notificationCount={notificationCount} />
-      <main className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <main className="mx-auto max-w-2xl px-4 py-6 md:px-6">
         {children}
       </main>
-      <InstallPrompt />
     </div>
   );
 }

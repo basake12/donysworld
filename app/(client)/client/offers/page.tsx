@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ClientOffersClient } from "./offers-client";
 
-export const revalidate = 0; // always fresh (offers change often)
+export const revalidate = 0;
 
 export default async function ClientOffersPage() {
   const session = await auth();

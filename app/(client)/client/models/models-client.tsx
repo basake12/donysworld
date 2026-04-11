@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ModelCard } from "@/components/model/model-card";
 import { OfferModal } from "@/components/client/offer-modal";
@@ -14,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Users, Search, SlidersHorizontal, X, MapPin, Loader2,
+  Users, Search, SlidersHorizontal, X, MapPin, Loader2, Star,
 } from "lucide-react";
 import { NIGERIA_STATES } from "@/lib/nigeria-states";
 import { cn } from "@/lib/utils";
@@ -45,7 +44,7 @@ interface ModelsClientProps {
   models: Model[];
   walletBalance: number;
   clientProfileId: string;
-  revealMap: Record<string, string>; // profileId -> expiresAt ISO string
+  revealMap: Record<string, string>;
   states: string[];
 }
 
@@ -55,15 +54,13 @@ export function ModelsClient({
   const router = useRouter();
   const { toast } = useToast();
 
-  const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("all");
-  const [cityFilter, setCityFilter] = useState("all");
+  const [search, setSearch]               = useState("");
+  const [stateFilter, setStateFilter]     = useState("all");
+  const [cityFilter, setCityFilter]       = useState("all");
   const [bodyTypeFilter, setBodyTypeFilter] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
-  const [locating, setLocating] = useState(false);
+  const [showFilters, setShowFilters]     = useState(false);
+  const [locating, setLocating]           = useState(false);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
-
-  // Local reveal map (updated on reveal without full page refresh)
   const [localRevealMap, setLocalRevealMap] = useState<Record<string, string>>(revealMap);
 
   const [offerModal, setOfferModal] = useState<{
@@ -71,7 +68,7 @@ export function ModelsClient({
     model: { id: string; fullName: string; profileId: string; charges: ModelCharge[] } | null;
   }>({ open: false, model: null });
 
-  // ── AUTO DETECT LOCATION ────────────────────
+  // ── Auto-detect location ─────────────────────
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
     autoDetectLocation();
@@ -81,47 +78,31 @@ export function ModelsClient({
     setLocating(true);
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 8000,
-          maximumAge: 600000,
-        })
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, maximumAge: 600000 })
       );
-
       const { latitude, longitude } = pos.coords;
-
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-        {
-          headers: { "Accept-Language": "en" },
-          cache: "force-cache",
-        }
+        { headers: { "Accept-Language": "en" }, cache: "force-cache" }
       );
-
       if (!res.ok) return;
       const data = await res.json();
-
       const rawState: string = data.address?.state || "";
-
       const matched = NIGERIA_STATES.find((s) => {
-        const a = s.state.toLowerCase();
-        const b = rawState.toLowerCase();
+        const a = s.state.toLowerCase(), b = rawState.toLowerCase();
         return b.includes(a) || a.includes(b) ||
           (a === "fct" && b.includes("capital")) ||
           (b.includes("fct") && a === "fct");
       });
-
       if (matched) {
         setStateFilter(matched.state);
         setLocationLabel(matched.state);
       }
-    } catch {
-      // Silent — user denied or timed out
-    } finally {
-      setLocating(false);
-    }
+    } catch { /* silent */ }
+    finally { setLocating(false); }
   }
 
-  // ── FILTERED MODELS ─────────────────────────
+  // ── Filtered ─────────────────────────────────
   const filtered = useMemo(() => {
     return models.filter((m) => {
       const p = m.modelProfile;
@@ -138,21 +119,14 @@ export function ModelsClient({
     });
   }, [models, search, stateFilter, cityFilter, bodyTypeFilter]);
 
-  // FIX: use Array.from() instead of spread [...] to avoid TS downlevelIteration error
   const citiesInState = useMemo(() => {
     if (stateFilter === "all") {
-      return Array.from(
-        new Set(models.map((m) => m.modelProfile?.city).filter(Boolean) as string[])
-      ).sort();
+      return Array.from(new Set(models.map((m) => m.modelProfile?.city).filter(Boolean) as string[])).sort();
     }
     return NIGERIA_STATES.find((s) => s.state === stateFilter)?.cities ?? [];
   }, [stateFilter, models]);
 
-  const activeFilters = [
-    stateFilter !== "all",
-    cityFilter  !== "all",
-    bodyTypeFilter !== "all",
-  ].filter(Boolean).length;
+  const activeFilters = [stateFilter !== "all", cityFilter !== "all", bodyTypeFilter !== "all"].filter(Boolean).length;
 
   function clearFilters() {
     setStateFilter("all");
@@ -167,64 +141,43 @@ export function ModelsClient({
     if (!m?.modelProfile) return;
     setOfferModal({
       open: true,
-      model: {
-        id: modelId,
-        fullName: m.nickname || m.fullName,
-        profileId,
-        charges: m.modelProfile.charges,
-      },
+      model: { id: modelId, fullName: m.nickname || m.fullName, profileId, charges: m.modelProfile.charges },
     });
-  }
-
-  async function handleRevealFace(profileId: string) {
-    try {
-      const res = await fetch("/api/reveal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelProfileId: profileId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Reveal failed");
-
-      setLocalRevealMap((prev) => ({
-        ...prev,
-        [profileId]: data.expiresAt,
-      }));
-
-      toast({
-        title: "Face revealed! 👁️",
-        description: "Access valid for 24 hours.",
-      });
-      router.refresh();
-    } catch (err: any) {
-      toast({ title: "Reveal failed", description: err.message, variant: "destructive" });
-    }
   }
 
   return (
     <>
       <div className="space-y-5">
-        {/* Header */}
-        <PageHeader
-          title="Browse Models"
-          description={`${models.length} verified models`}
-        />
 
-        {/* Location bar */}
+        {/* ── HEADER ────────────────────────── */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-black text-foreground font-playfair">Browse Models</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{models.length} verified models</p>
+          </div>
+          {activeFilters > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}
+              className="text-xs text-muted-foreground hover:text-foreground gap-1 h-8">
+              <X className="h-3 w-3" />Clear filters
+            </Button>
+          )}
+        </div>
+
+        {/* ── LOCATION DETECTED BAR ─────────── */}
         {(locating || locationLabel) && (
-          <div className="flex items-center gap-2 rounded-xl border border-gold/20 bg-gold/5 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-gold/20 bg-gold/5 px-3 py-2.5">
             {locating ? (
               <>
-                <Loader2 className="h-4 w-4 text-gold animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 text-gold animate-spin" />
                 <span className="text-xs text-muted-foreground">Detecting your location...</span>
               </>
             ) : (
               <>
-                <MapPin className="h-4 w-4 text-gold" />
+                <MapPin className="h-3.5 w-3.5 text-gold" />
                 <span className="text-xs text-foreground">
-                  Showing models in <span className="text-gold font-semibold">{locationLabel}</span>
+                  Showing models in <span className="text-gold font-bold">{locationLabel}</span>
                 </span>
-                <button onClick={clearFilters} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
+                <button onClick={clearFilters} className="ml-auto text-[10px] text-muted-foreground hover:text-foreground">
                   Show all
                 </button>
               </>
@@ -232,51 +185,52 @@ export function ModelsClient({
           </div>
         )}
 
-        {/* Search + filter bar */}
+        {/* ── SEARCH + FILTER ROW ───────────── */}
         <div className="space-y-3">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search name, city or state..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-secondary border-border focus:border-gold"
+                className="pl-9 h-10 bg-secondary border-border focus:border-gold text-sm rounded-xl"
               />
+              {search && (
+                <button onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             <Button
               variant="outline"
               onClick={() => setShowFilters((p) => !p)}
               className={cn(
-                "gap-2 border-border",
-                showFilters && "border-gold text-gold bg-gold/10"
+                "gap-2 h-10 rounded-xl border-border px-4 text-sm shrink-0",
+                showFilters && "border-gold text-gold bg-gold/8"
               )}
             >
-              <SlidersHorizontal className="h-4 w-4" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
               Filters
               {activeFilters > 0 && (
-                <Badge className="h-4 w-4 p-0 flex items-center justify-center bg-gold text-primary-foreground text-[10px] rounded-full">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[9px] font-black text-black">
                   {activeFilters}
-                </Badge>
+                </span>
               )}
             </Button>
-            {activeFilters > 0 && (
-              <Button variant="ghost" size="icon" onClick={clearFilters}
-                className="text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-              </Button>
-            )}
           </div>
 
+          {/* Filter panel */}
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl border border-border bg-card p-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground font-medium">State</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">State</label>
                 <Select value={stateFilter} onValueChange={(v) => { setStateFilter(v); setCityFilter("all"); }}>
-                  <SelectTrigger className="bg-secondary border-border focus:border-gold">
+                  <SelectTrigger className="h-10 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                     <SelectValue placeholder="All states" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56">
+                  <SelectContent className="max-h-56 rounded-xl">
                     <SelectItem value="all">All States</SelectItem>
                     {NIGERIA_STATES.map((s) => (
                       <SelectItem key={s.state} value={s.state}>{s.state}</SelectItem>
@@ -286,12 +240,12 @@ export function ModelsClient({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground font-medium">City</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">City</label>
                 <Select value={cityFilter} onValueChange={setCityFilter}>
-                  <SelectTrigger className="bg-secondary border-border focus:border-gold">
+                  <SelectTrigger className="h-10 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                     <SelectValue placeholder="All cities" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56">
+                  <SelectContent className="max-h-56 rounded-xl">
                     <SelectItem value="all">All Cities</SelectItem>
                     {citiesInState.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
@@ -301,12 +255,12 @@ export function ModelsClient({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground font-medium">Body Type</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Body Type</label>
                 <Select value={bodyTypeFilter} onValueChange={setBodyTypeFilter}>
-                  <SelectTrigger className="bg-secondary border-border focus:border-gold">
+                  <SelectTrigger className="h-10 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="all">All Body Types</SelectItem>
                     <SelectItem value="SLIM">Slim</SelectItem>
                     <SelectItem value="AVERAGE">Average</SelectItem>
@@ -320,45 +274,58 @@ export function ModelsClient({
           )}
         </div>
 
+        {/* ── RESULTS COUNT ─────────────────── */}
         {(search || activeFilters > 0) && (
-          <p className="text-sm text-muted-foreground">
-            Showing <span className="text-gold font-medium">{filtered.length}</span> of {models.length} models
+          <p className="text-xs text-muted-foreground">
+            <span className="text-gold font-bold">{filtered.length}</span> of {models.length} models
           </p>
         )}
 
-        {/* Grid */}
+        {/* ── MODEL GRID ────────────────────── */}
         {filtered.length === 0 ? (
           <EmptyState
             icon={Users}
             title="No models found"
-            description={
-              activeFilters > 0 || search
-                ? "Try adjusting your filters."
-                : "No active models available."
-            }
-            action={
-              (activeFilters > 0 || search) ? (
-                <Button variant="outline" onClick={clearFilters}
-                  className="border-gold/30 text-gold hover:bg-gold/10">
-                  Clear Filters
-                </Button>
-              ) : undefined
-            }
+            description={activeFilters > 0 || search ? "Try adjusting your filters." : "No active models available."}
+            action={(activeFilters > 0 || search) ? (
+              <Button variant="outline" onClick={clearFilters}
+                className="border-gold/30 text-gold hover:bg-gold/8 rounded-xl text-sm">
+                Clear Filters
+              </Button>
+            ) : undefined}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((model) => (
-              <ModelCard
-                key={model.id}
-                model={model as any}
-                revealInfo={{
-                  revealed: !!localRevealMap[model.modelProfile?.id ?? ""],
-                  expiresAt: localRevealMap[model.modelProfile?.id ?? ""] ?? null,
-                }}
-                onMakeOffer={handleMakeOffer}
-                onRevealFace={handleRevealFace}
-              />
-            ))}
+          <div className="space-y-6">
+
+            {/* ── TOP RATED SECTION ─────────── */}
+            {filtered.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-gold fill-gold" />
+                  <h2 className="text-sm font-black text-foreground">
+                    {locationLabel ? `Models in ${locationLabel}` : "All Models"}
+                  </h2>
+                  <Badge variant="outline" className="text-[10px] border-gold/20 text-gold px-2 py-0 rounded-full">
+                    {filtered.length}
+                  </Badge>
+                </div>
+
+                {/* 2-col mobile · 3-col sm · 4-col lg */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filtered.map((model) => (
+                    <ModelCard
+                      key={model.id}
+                      model={model as any}
+                      revealInfo={{
+                        revealed: !!localRevealMap[model.modelProfile?.id ?? ""],
+                        expiresAt: localRevealMap[model.modelProfile?.id ?? ""] ?? null,
+                      }}
+                      onMakeOffer={handleMakeOffer}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

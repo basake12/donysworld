@@ -1,15 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  MapPin, Ruler, User, Coins,
-  ChevronLeft, ChevronRight, Images, Eye, Clock,
-} from "lucide-react";
-import { formatCoins, FACE_REVEAL_COST } from "@/lib/coins";
+import { useRouter } from "next/navigation";
+import { MapPin, ShieldCheck, Clock, Star, UserCheck } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
-import { GalleryModal } from "./gallery-modal";
 import { cn } from "@/lib/utils";
 
 interface ModelCharge {
@@ -52,298 +45,141 @@ interface ModelCardProps {
   };
   revealInfo: RevealInfo;
   onMakeOffer: (modelId: string, profileId: string) => void;
-  onRevealFace: (profileId: string) => Promise<void>;
+  onRevealFace?: (profileId: string) => Promise<void>;
 }
 
-const MEET_LABEL: Record<string, string> = {
-  SHORT: "Short Meet",
-  OVERNIGHT: "Overnight",
-  WEEKEND: "Weekend",
+const BODY_COLORS: Record<string, string> = {
+  SLIM:      "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  AVERAGE:   "text-violet-400 bg-violet-400/10 border-violet-400/20",
+  ATHLETIC:  "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  CURVY:     "text-rose-400 bg-rose-400/10 border-rose-400/20",
+  PLUS_SIZE: "text-orange-400 bg-orange-400/10 border-orange-400/20",
 };
 
 const BODY_LABEL: Record<string, string> = {
-  SLIM: "Slim", AVERAGE: "Average", ATHLETIC: "Athletic",
-  CURVY: "Curvy", PLUS_SIZE: "Plus Size",
+  SLIM: "Slim",
+  AVERAGE: "Average",
+  ATHLETIC: "Athletic",
+  CURVY: "Curvy",
+  PLUS_SIZE: "Plus Size",
 };
 
-const COMPLEXION_LABEL: Record<string, string> = {
-  FAIR: "Fair", LIGHT: "Light", MEDIUM: "Medium",
-  OLIVE: "Olive", TAN: "Tan", DARK: "Dark",
-};
+export function ModelCard({ model, revealInfo }: ModelCardProps) {
+  const router       = useRouter();
+  const p            = model.modelProfile;
+  const isBlurred    = p.isFaceBlurred && !revealInfo.revealed;
+  const displayName  = model.nickname || "Model";
+  const galleryCount = p.gallery.length;
+  const detailHref   = `/client/models/${model.id}`;
 
-export function ModelCard({
-  model, revealInfo, onMakeOffer, onRevealFace,
-}: ModelCardProps) {
-  const [revealing, setRevealing] = useState(false);
-  const [slide, setSlide] = useState(0);
-  const [galleryOpen, setGalleryOpen] = useState(false);
-
-  const p = model.modelProfile;
-  const isBlurred = p.isFaceBlurred && !revealInfo.revealed;
-  const displayName = model.nickname || "Model";
-
-  const allImages = [
-    p.profilePictureUrl,
-    ...p.gallery.map((g) => g.imageUrl),
-  ];
-
-  const lowestCharge = p.charges.reduce(
-    (min, c) => (c.maxCoins < min ? c.maxCoins : min), Infinity
-  );
-
-  function prev(e: React.MouseEvent) {
+  function handleConnect(e: React.MouseEvent) {
+    e.preventDefault();
     e.stopPropagation();
-    setSlide((s) => (s === 0 ? allImages.length - 1 : s - 1));
-  }
-
-  function next(e: React.MouseEvent) {
-    e.stopPropagation();
-    setSlide((s) => (s === allImages.length - 1 ? 0 : s + 1));
-  }
-
-  async function handleReveal() {
-    setRevealing(true);
-    await onRevealFace(p.id);
-    setRevealing(false);
+    // ── DEBUG: open your browser console to confirm the ID and path ──
+    console.log("[ModelCard] Connect → pushing to:", detailHref);
+    console.log("[ModelCard] model.id =", model.id, "| typeof =", typeof model.id);
+    router.push(detailHref);
   }
 
   return (
-    <>
-      <div className="group rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40 hover:border-gold/30 flex flex-col">
+    <div
+      className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer"
+    >
+      {/* ── IMAGE AREA ──────────────────────────────── */}
+      {/* Clicking the image also navigates */}
+      <div
+        onClick={handleConnect}
+        className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0"
+      >
+        <FaceBlurImage
+          src={p.profilePictureUrl}
+          alt={displayName}
+          fill
+          blurred={isBlurred}
+          sizes="(max-width: 640px) 50vw, 320px"
+          priority
+          expiresAt={revealInfo.expiresAt}
+        />
 
-        {/* ── IMAGE CAROUSEL ───────────────────── */}
-        <div className="relative h-72 bg-secondary overflow-hidden">
-          {/* Circle blur only — no button inside image */}
-          <FaceBlurImage
-            key={allImages[slide]}
-            src={allImages[slide]}
-            alt={displayName}
-            fill
-            blurred={isBlurred}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
-            priority={slide === 0}
-            expiresAt={revealInfo.expiresAt}
-            cost={FACE_REVEAL_COST}
-          />
+        {/* Subtle bottom gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
-          {/* Dark gradient */}
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
-
-          {/* Location */}
-          <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 backdrop-blur-sm border border-white/10">
-            <MapPin className="h-3 w-3 text-gold" />
-            <span className="text-xs font-medium text-white">
-              {p.city}, {p.state}
-            </span>
-          </div>
-
-          {/* Slide counter */}
-          {allImages.length > 1 && (
-            <div className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-0.5 backdrop-blur-sm border border-white/10">
-              <span className="text-[10px] text-white/80">
-                {slide + 1}/{allImages.length}
-              </span>
-            </div>
-          )}
-
-          {/* Carousel arrows */}
-          {allImages.length > 1 && (
-            <>
-              <button
-                onClick={prev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                onClick={next}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 flex gap-1">
-                {allImages.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={(e) => { e.stopPropagation(); setSlide(i); }}
-                    className={cn(
-                      "rounded-full transition-all",
-                      i === slide ? "w-4 h-1.5 bg-gold" : "w-1.5 h-1.5 bg-white/40"
-                    )}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ── INFO ──────────────────────────────── */}
-        <div className="flex flex-col flex-1 p-4 space-y-3">
-
-          {/* Name + badges */}
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="font-bold text-foreground text-lg leading-tight">
-                {displayName}
-              </h3>
-              <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  {p.age} yrs
-                </span>
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <Ruler className="h-3 w-3" />
-                  {p.height}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 items-end shrink-0">
-              <Badge variant="outline" className="text-[10px] px-2 py-0 border-gold/20 text-gold">
-                {BODY_LABEL[p.bodyType]}
-              </Badge>
-              <Badge variant="outline" className="text-[10px] px-2 py-0 border-border text-muted-foreground">
-                {COMPLEXION_LABEL[p.complexion]}
-              </Badge>
-            </div>
-          </div>
-
-          {/* About */}
-          {p.about && (
-            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-              {p.about}
-            </p>
-          )}
-
-          {/* Charges */}
-          {p.charges.length > 0 && (
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["SHORT", "OVERNIGHT", "WEEKEND"] as const).map((type) => {
-                const charge = p.charges.find((c) => c.meetType === type);
-                if (!charge) return null;
-                return (
-                  <div
-                    key={type}
-                    className="flex flex-col items-center rounded-xl bg-secondary border border-border px-2 py-2 gap-0.5"
-                  >
-                    <span className="text-[9px] text-muted-foreground font-medium text-center leading-tight">
-                      {MEET_LABEL[type]}
-                    </span>
-                    <div className="flex items-center gap-0.5">
-                      <Coins className="h-2.5 w-2.5 text-gold" />
-                      <span className="text-[10px] font-bold text-gold">
-                        {charge.maxCoins.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ── CTA BUTTONS ─────────────────────── */}
-          <div className="mt-auto pt-1 space-y-2">
-
-            {/* REVEAL FACE button — only when blurred + model allows */}
-            {isBlurred && p.allowFaceReveal && (
-              <button
-                onClick={handleReveal}
-                disabled={revealing}
-                className="w-full disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <div className="relative flex items-center gap-3 px-4 py-2.5 rounded-xl border border-gold/40 bg-gradient-to-r from-amber-950/80 via-yellow-900/50 to-amber-950/80 hover:border-gold/80 hover:from-amber-900/80 hover:via-yellow-800/60 hover:to-amber-900/80 transition-all duration-200">
-                  {/* Eye icon circle */}
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold/20 border border-gold/50">
-                    {revealing ? (
-                      <span className="text-gold text-xs animate-pulse font-bold">···</span>
-                    ) : (
-                      <Eye className="h-4 w-4 text-gold" />
-                    )}
-                  </div>
-
-                  {/* Text */}
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-xs font-bold text-gold leading-tight">
-                      {revealing ? "Revealing face..." : "Unlock Face Reveal"}
-                    </p>
-                    <p className="text-[10px] text-amber-400/80 leading-tight">
-                      1,000 DC · Valid for 24 hours only
-                    </p>
-                  </div>
-
-                  {/* 24H badge */}
-                  {!revealing && (
-                    <div className="flex shrink-0 items-center gap-1 rounded-full bg-gold/15 border border-gold/30 px-2 py-0.5">
-                      <Clock className="h-2.5 w-2.5 text-gold/70" />
-                      <span className="text-[9px] text-gold font-bold">24H</span>
-                    </div>
-                  )}
-                </div>
-              </button>
-            )}
-
-            {/* Face already revealed — green status bar */}
-            {!isBlurred && revealInfo.expiresAt && (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                  <Eye className="h-3.5 w-3.5 text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-emerald-400 leading-tight">
-                    Face Unlocked
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-tight">
-                    Access expires in 24 hours
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5">
-                  <Clock className="h-2.5 w-2.5 text-emerald-400/70" />
-                  <span className="text-[9px] text-emerald-400 font-bold">24H</span>
-                </div>
-              </div>
-            )}
-
-            {/* Gallery button */}
-            {p.gallery.length > 0 && (
-              <Button
-                onClick={() => setGalleryOpen(true)}
-                variant="outline"
-                className="w-full h-9 border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-sm gap-2"
-              >
-                <Images className="h-4 w-4" />
-                View Gallery ({p.gallery.length} photo{p.gallery.length !== 1 ? "s" : ""})
-              </Button>
-            )}
-
-            {/* Make Offer */}
-            <Button
-              onClick={() => onMakeOffer(model.id, p.id)}
-              disabled={p.charges.length === 0}
-              className="w-full h-10 bg-gold-gradient text-primary-foreground font-bold hover:opacity-90 disabled:opacity-40 rounded-xl text-sm"
-            >
-              {p.charges.length === 0
-                ? "No charges set"
-                : `Make Offer · from ${lowestCharge === Infinity ? 0 : lowestCharge.toLocaleString()} DC`}
-            </Button>
-
+        {/* ── Verified badge ── */}
+        <div className="absolute top-2.5 left-2.5 z-10">
+          <div className="flex items-center gap-1 rounded-full bg-gold/90 backdrop-blur-sm px-2 py-0.5 shadow-lg">
+            <ShieldCheck className="h-2.5 w-2.5 text-black" />
+            <span className="text-[9px] font-black text-black tracking-wider">VERIFIED</span>
           </div>
         </div>
+
+        {/* ── Gallery count badge ── */}
+        {galleryCount > 0 && !revealInfo.expiresAt && (
+          <div className="absolute top-2.5 right-2.5 z-10">
+            <div className="flex items-center gap-1 rounded-full bg-black/70 border border-white/10 backdrop-blur-sm px-2 py-0.5">
+              <Star className="h-2.5 w-2.5 text-gold/80" />
+              <span className="text-[9px] font-medium text-white/80">{galleryCount + 1} photos</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Unlocked badge ── */}
+        {!isBlurred && revealInfo.expiresAt && (
+          <div className="absolute top-2.5 right-2.5 z-10">
+            <div className="flex items-center gap-1 rounded-full bg-emerald-500/90 backdrop-blur-sm px-2 py-0.5">
+              <Clock className="h-2.5 w-2.5 text-white" />
+              <span className="text-[9px] font-bold text-white">Unlocked</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Gallery modal */}
-      <GalleryModal
-        open={galleryOpen}
-        onClose={() => setGalleryOpen(false)}
-        modelName={displayName}
-        profilePicture={p.profilePictureUrl}
-        gallery={p.gallery}
-        isBlurred={isBlurred}
-        allowReveal={p.allowFaceReveal}
-        onReveal={handleReveal}
-        revealing={revealing}
-        expiresAt={revealInfo.expiresAt}
-      />
-    </>
+      {/* ── CARD BODY ────────────────────────────────── */}
+      <div className="flex flex-col flex-1 p-3 gap-2">
+
+        {/* Name + location */}
+        <div>
+          <h3 className="font-black text-foreground text-sm leading-tight tracking-wide truncate">
+            {displayName}
+          </h3>
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            <span className="text-[11px] text-muted-foreground font-medium">{p.age} yrs</span>
+            <span className="text-[11px] text-muted-foreground/40">·</span>
+            <MapPin className="h-2.5 w-2.5 text-gold flex-shrink-0" />
+            <span className="text-[11px] text-muted-foreground truncate">{p.city}, {p.state}</span>
+          </div>
+        </div>
+
+        {/* Body type + height pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {p.bodyType && (
+            <span className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+              BODY_COLORS[p.bodyType] ?? "text-muted-foreground bg-secondary border-border"
+            )}>
+              {BODY_LABEL[p.bodyType]}
+            </span>
+          )}
+          {p.height && (
+            <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded-full px-2 py-0.5">
+              {p.height}
+            </span>
+          )}
+        </div>
+
+        {/* ── Connect CTA ── */}
+        <button
+          onClick={handleConnect}
+          className={cn(
+            "mt-auto w-full h-9 font-black rounded-xl text-xs",
+            "bg-gold-gradient text-black",
+            "flex items-center justify-center gap-1.5",
+            "transition-all duration-200 hover:opacity-90 active:scale-[0.98]",
+          )}
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Connect
+        </button>
+      </div>
+    </div>
   );
 }
