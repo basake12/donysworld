@@ -144,6 +144,8 @@ export async function PATCH(req: NextRequest) {
     const validActions: EmailAction[] = ["approve", "reject", "suspend", "unsuspend"];
     if (!validActions.includes(action)) return errorResponse("Invalid action");
 
+    const typedAction = action as EmailAction;
+
     const modelProfile = await prisma.modelProfile.findUnique({
       where: { id: profileId },
       include: {
@@ -186,14 +188,14 @@ export async function PATCH(req: NextRequest) {
     // ── DB update + in-app notification ──────────────────────────────────────
     await prisma.modelProfile.update({
       where: { id: profileId },
-      data: { status: STATUS_MAP[action] },
+      data: { status: STATUS_MAP[typedAction] },
     });
 
     await prisma.notification.create({
       data: {
         userId: modelUserId,
-        title: NOTIFICATION_MAP[action].title,
-        message: NOTIFICATION_MAP[action].message,
+        title: NOTIFICATION_MAP[typedAction].title,
+        message: NOTIFICATION_MAP[typedAction].message,
         link: "/model/dashboard",
       },
     });
@@ -202,10 +204,10 @@ export async function PATCH(req: NextRequest) {
     await sendModelEmail({
       toEmail: modelProfile.user.email,
       toName:  modelProfile.user.fullName,
-      action,
+      action:  typedAction,
     });
 
-    return NextResponse.json({ message: `Model ${action}d successfully` });
+    return NextResponse.json({ message: `Model ${typedAction}d successfully` });
   } catch (err: any) {
     console.error("[ADMIN MODELS PATCH ERROR]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
