@@ -7,7 +7,7 @@ import { Role } from "@prisma/client";
 // ROUTE MAPS
 // ─────────────────────────────────────────────
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/age-gate"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/age-gate", "/forgot-password", "/reset-password"];
 
 const ROLE_ROUTES: Record<Role, string> = {
   CLIENT: "/client/dashboard",
@@ -30,7 +30,7 @@ export default auth(function middleware(req: NextRequest & { auth: any }) {
   const session = req.auth;
 
   // Allow public routes always
-  if (PUBLIC_ROUTES.some((route) => pathname === route)) {
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
