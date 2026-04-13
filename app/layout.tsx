@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { auth } from "@/lib/auth";
@@ -73,7 +74,10 @@ export default async function RootLayout({
         >
           <SessionProvider session={session}>
             {children}
+            {/* Custom useToast-based toaster — used by dashboards & forms */}
             <Toaster />
+            {/* Sonner toaster — used by login, register, forgot-password, reset-password */}
+            <SonnerToaster position="top-center" richColors closeButton />
           </SessionProvider>
         </ThemeProvider>
 
