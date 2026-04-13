@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+﻿import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,8 +9,9 @@ import Link from "next/link";
 import {
   Wallet, HandCoins, Clock, CheckCircle2, XCircle,
   ArrowRight, Coins, UserCircle, AlertTriangle,
-  TrendingUp, Sparkles, Crown,
+  TrendingUp, Sparkles, ShieldX,
 } from "lucide-react";
+import { ModelIcon } from "@/components/shared/model-icon";
 import { formatCoins, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
 
@@ -190,7 +191,7 @@ export default async function ModelDashboardPage() {
             { href: "/model/profile",    label: "Edit Profile",  icon: UserCircle },
             { href: "/model/wallet",     label: "My Wallet",    icon: Wallet },
             { href: "/model/offers",     label: "All Offers",   icon: HandCoins },
-            { href: "/model/blocklist",  label: "Blocklist",    icon: Crown },
+            { href: "/model/blocklist",  label: "Blocklist",    icon: ShieldX },
           ].map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               className="flex items-center gap-2 rounded-xl border border-border bg-secondary p-2.5 hover:border-gold/30 hover:bg-gold/5 transition-all group">

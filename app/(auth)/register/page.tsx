@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,8 +15,9 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import {
   Eye, EyeOff, Upload, Loader2, User, Camera, FileText,
-  CheckCircle2, Crown, Shield, Star, Lock, Coins,
+  CheckCircle2, Shield, Star, Lock, Coins,
 } from "lucide-react";
+import { ModelIcon } from "@/components/shared/model-icon";
 import { cn } from "@/lib/utils";
 
 // ─── SCHEMAS ────────────────────────────────────
@@ -261,7 +262,7 @@ export default function RegisterPage() {
         {/* Logo */}
         <Link href="/" className="relative flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
-            <Crown className="h-5 w-5 text-gold" />
+            <ModelIcon className="h-5 w-5 text-gold" />
           </div>
           <span className="text-2xl font-black text-gold-gradient font-playfair">Dony&apos;s World</span>
         </Link>
@@ -319,7 +320,7 @@ export default function RegisterPage() {
           <div className="lg:hidden flex justify-center mb-7">
             <Link href="/" className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
-                <Crown className="h-4 w-4 text-gold" />
+                <ModelIcon className="h-4 w-4 text-gold" />
               </div>
               <span className="text-xl font-black text-gold-gradient font-playfair">Dony&apos;s World</span>
             </Link>

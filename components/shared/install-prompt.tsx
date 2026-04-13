@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { X, Crown, Smartphone } from "lucide-react";
+import { X, Smartphone } from "lucide-react";
+import { ModelIcon } from "@/components/shared/model-icon";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -12,8 +13,8 @@ interface BeforeInstallPromptEvent extends Event {
 let _savedPrompt: BeforeInstallPromptEvent | null = null;
 
 export function InstallPrompt() {
-  const [show, setShow]           = useState(false);
-  const [isIOS, setIsIOS]         = useState(false);
+  const [show, setShow]               = useState(false);
+  const [isIOS, setIsIOS]             = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export function InstallPrompt() {
         <div className="p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 border border-gold/20">
-              <Crown className="h-5 w-5 text-gold" />
+              <ModelIcon className="h-5 w-5 text-gold" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-foreground text-sm">

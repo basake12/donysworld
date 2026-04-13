@@ -150,6 +150,20 @@ model Session {
 }
 
 // ─────────────────────────────────────────────
+// PASSWORD RESET TOKEN                          ← NEW
+// ─────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String   @unique          // one active token per user at a time
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// ─────────────────────────────────────────────
 // CLIENT PROFILE
 // ─────────────────────────────────────────────
 

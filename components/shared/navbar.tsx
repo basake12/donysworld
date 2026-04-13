@@ -16,8 +16,9 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Wallet, Users, Bell, LogOut, Menu, HandCoins,
-  UserCircle, ShieldCheck, Coins, Sun, Moon, Crown, ShieldX,
+  UserCircle, ShieldCheck, Coins, Sun, Moon, ShieldX,
 } from "lucide-react";
+import { ModelIcon } from "@/components/shared/model-icon";
 import { cn } from "@/lib/utils";
 
 // ─── NAV LINKS ──────────────────────────────────
@@ -102,7 +103,7 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
         <div className="flex items-center gap-5">
           <Link href={`/${role.toLowerCase()}/dashboard`} className="flex items-center gap-2 shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold/12 border border-gold/25">
-              <Crown className="h-4 w-4 text-gold" />
+              <ModelIcon className="h-4 w-4 text-gold" />
             </div>
             <span className="font-black text-gold-gradient tracking-wide hidden sm:block font-playfair text-lg">
               Dony&apos;s World
@@ -209,7 +210,7 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
               <div className="flex flex-col h-full">
                 <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border">
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold/12 border border-gold/25">
-                    <Crown className="h-4 w-4 text-gold" />
+                    <ModelIcon className="h-4 w-4 text-gold" />
                   </div>
                   <span className="font-black text-gold-gradient font-playfair">Dony&apos;s World</span>
                 </div>

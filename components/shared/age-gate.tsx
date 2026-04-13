@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Crown, Shield } from "lucide-react";
+import { AlertTriangle, Shield } from "lucide-react";
+import { ModelIcon } from "@/components/shared/model-icon";
 
 export function AgeGate() {
   const [show, setShow]     = useState(false);
@@ -47,7 +48,7 @@ export function AgeGate() {
             <div className="flex flex-col items-center gap-4 pt-8 pb-6 px-8">
               <div className="relative">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gold/10 border-2 border-gold/30 pulse-glow">
-                  <Crown className="h-9 w-9 text-gold" />
+                  <ModelIcon className="h-9 w-9 text-gold" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-gold/15 border border-gold/30">
                   <Shield className="h-3.5 w-3.5 text-gold" />

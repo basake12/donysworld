@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AgeGate } from "@/components/shared/age-gate";
 import { InstallPrompt } from "@/components/shared/install-prompt";
+import { ModelIcon } from "@/components/shared/model-icon";
 import { prisma } from "@/lib/prisma";
 import {
-  Shield, MapPin, Coins, Crown, ChevronRight,
+  Shield, MapPin, Coins, ChevronRight,
   Users, Lock, Zap, CheckCircle2, Star, TrendingUp,
 } from "lucide-react";
 
@@ -23,7 +24,6 @@ export default async function HomePage() {
   const session = await auth();
   if (session?.user) redirect(ROLE_REDIRECTS[session.user.role]);
 
-  // Only offer count is live — everything else is fixed
   const offerCount = await prisma.offer
     .count({ where: { status: { in: ["COMPLETED", "ACCEPTED"] } } })
     .catch(() => 2400);
@@ -46,9 +46,8 @@ export default async function HomePage() {
         <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 bg-black/50 backdrop-blur-xl border-b border-white/5">
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
-              <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gold" />
+              <ModelIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gold" />
             </div>
-            {/* whitespace-nowrap stops the two-line wrap on small screens */}
             <span className="text-base sm:text-lg font-black text-gold-gradient font-playfair whitespace-nowrap">
               Dony&apos;s World
             </span>
@@ -69,24 +68,20 @@ export default async function HomePage() {
         {/* ── HERO ────────────────────────────────────────────────────── */}
         <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-20 pb-12 overflow-hidden">
 
-          {/* Radial glow */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "radial-gradient(ellipse 90% 70% at 50% 40%, hsl(43 62% 52% / 0.10) 0%, transparent 65%)" }} />
 
-          {/* Grid pattern */}
           <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
             style={{
               backgroundImage: "linear-gradient(hsl(43 62% 52%) 1px, transparent 1px), linear-gradient(90deg, hsl(43 62% 52%) 1px, transparent 1px)",
               backgroundSize: "48px 48px",
             }} />
 
-          {/* Verified pill — clamp text so it never overflows */}
           <div className="relative inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/8 px-3 sm:px-4 py-1.5 text-[10px] sm:text-[11px] text-gold font-black tracking-wider sm:tracking-widest uppercase mb-6 sm:mb-7 animate-fade-in max-w-[90vw] text-center">
             <div className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse shrink-0" />
             Nigeria&apos;s #1 Verified Model Platform
           </div>
 
-          {/* Headline — gracefully scales from xs to xl screens */}
           <h1 className="relative font-black leading-[0.88] tracking-tight mb-5 animate-slide-up font-playfair
                          text-5xl xs:text-6xl sm:text-7xl md:text-8xl">
             <span className="text-gold-gradient">Dony&apos;s</span>
@@ -96,10 +91,9 @@ export default async function HomePage() {
 
           <p className="relative text-sm sm:text-base text-white/50 max-w-[280px] sm:max-w-sm mb-8 leading-relaxed animate-fade-in"
             style={{ animationDelay: "0.1s" }}>
-            Connect with verified models near you  private, fast, and secured.
+            Connect with verified models near you — private, fast, and secured.
           </p>
 
-          {/* CTAs — stack on mobile, row on sm+ */}
           <div className="relative flex flex-col sm:flex-row gap-3 mb-10 sm:mb-12 animate-fade-in w-full max-w-[320px] sm:max-w-none sm:w-auto"
             style={{ animationDelay: "0.15s" }}>
             <Button asChild size="lg"
@@ -115,7 +109,6 @@ export default async function HomePage() {
             </Button>
           </div>
 
-          {/* Stats grid — 2-col on mobile, 4-col on sm+ */}
           <div className="relative w-full max-w-sm sm:max-w-lg animate-fade-in px-1"
             style={{ animationDelay: "0.2s" }}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
@@ -173,7 +166,6 @@ export default async function HomePage() {
                   </Button>
                 </div>
 
-                {/* Stat cards — 2-col always */}
                 <div className="grid grid-cols-2 gap-3 w-full md:w-64 shrink-0">
                   {[
                     { value: "500+", label: "Active Models", color: "border-gold/20 bg-gold/5" },
@@ -267,7 +259,7 @@ export default async function HomePage() {
         <footer className="border-t border-white/5 px-4 sm:px-6 py-8">
           <div className="max-w-2xl mx-auto flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
-              <Crown className="h-4 w-4 text-gold/60" />
+              <ModelIcon className="h-4 w-4 text-gold/60" />
               <span className="text-sm font-black text-gold-gradient font-playfair">Dony&apos;s World</span>
             </div>
             <p className="text-[11px] text-white/20 text-center">

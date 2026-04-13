@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+﻿import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
   Wallet, HandCoins, Users, Clock, CheckCircle2, XCircle,
-  ArrowRight, Coins, Sparkles, TrendingUp, Crown,
+  ArrowRight, Coins, Sparkles, TrendingUp, Bell,
 } from "lucide-react";
 import {
   formatCoins, coinsToNairaFormatted, calculateConnectionFees,
@@ -192,7 +192,7 @@ export default async function ClientDashboardPage() {
             { href: "/client/models",        label: "Browse Models",  icon: Users },
             { href: "/client/wallet",        label: "Fund Wallet",   icon: Wallet },
             { href: "/client/offers",        label: "My Offers",     icon: HandCoins },
-            { href: "/client/notifications", label: "Notifications", icon: Crown },
+            { href: "/client/notifications", label: "Notifications", icon: Bell },
           ].map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               className="flex items-center gap-2 rounded-xl border border-border bg-secondary p-2.5 hover:border-gold/30 hover:bg-gold/5 transition-all group">
