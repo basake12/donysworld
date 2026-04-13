@@ -18,23 +18,24 @@ export default function Smartsupp() {
   const [isMobile, setIsMobile] = useState(false);
 
   // Drag state
-  const btnRef   = useRef<HTMLButtonElement>(null);
-  const dragging = useRef(false);
-  const moved    = useRef(false);
-  const offset   = useRef({ x: 0, y: 0 });
+  const btnRef        = useRef<HTMLButtonElement>(null);
+  const dragging      = useRef(false);
+  const moved         = useRef(false);
+  const touchHandled  = useRef(false); // prevents click from firing after touchend
+  const offset        = useRef({ x: 0, y: 0 });
   const [pos, setPos] = useState({ x: 24, y: 24 }); // distance from right/bottom
 
-  // ── Detect mobile ────────────────────────────────────────────────────────
+  // ── Detect mobile ─────────────────────────────────────────────────────────
   useEffect(() => {
     setIsMobile(window.matchMedia("(max-width: 768px)").matches);
   }, []);
 
-  // ── Load Smartsupp ───────────────────────────────────────────────────────
+  // ── Load Smartsupp ────────────────────────────────────────────────────────
   useEffect(() => {
     window._smartsupp = window._smartsupp ?? {};
     window._smartsupp.key = SMARTSUPP_KEY;
 
-    // On mobile: hide the native button so our custom one takes over
+    // On mobile: hide the native widget button so our custom one takes over
     if (window.matchMedia("(max-width: 768px)").matches) {
       window._smartsupp.hideWidget = true;
     }
@@ -49,19 +50,21 @@ export default function Smartsupp() {
     s.parentNode?.insertBefore(c, s);
   }, []);
 
-  // ── Toggle chat via Smartsupp JS API ─────────────────────────────────────
-  function toggleChat() {
+  // ── Toggle chat — memoized so callbacks never capture a stale value ───────
+  const toggleChat = useCallback(() => {
     if (!window.smartsupp) return;
-    if (open) {
-      window.smartsupp("chat:close");
-      setOpen(false);
-    } else {
-      window.smartsupp("chat:open");
-      setOpen(true);
-    }
-  }
+    setOpen((prev) => {
+      if (prev) {
+        window.smartsupp!("chat:close");
+        return false;
+      } else {
+        window.smartsupp!("chat:open");
+        return true;
+      }
+    });
+  }, []); // no deps needed — reads `open` via the setter callback
 
-  // ── Mouse drag ───────────────────────────────────────────────────────────
+  // ── Mouse drag ────────────────────────────────────────────────────────────
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!dragging.current) return;
     moved.current = true;
@@ -71,7 +74,6 @@ export default function Smartsupp() {
     const bh = btnRef.current?.offsetHeight ?? 56;
     const newX = Math.max(8, Math.min(vw - bw - 8, e.clientX - offset.current.x));
     const newY = Math.max(8, Math.min(vh - bh - 8, e.clientY - offset.current.y));
-    // store as distance from right/bottom so it feels natural
     setPos({ x: vw - newX - bw, y: vh - newY - bh });
   }, []);
 
@@ -82,7 +84,7 @@ export default function Smartsupp() {
   }, [onMouseMove]);
 
   function onMouseDown(e: React.MouseEvent) {
-    moved.current   = false;
+    moved.current    = false;
     dragging.current = true;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -90,7 +92,7 @@ export default function Smartsupp() {
     window.addEventListener("mouseup",   onMouseUp);
   }
 
-  // ── Touch drag ───────────────────────────────────────────────────────────
+  // ── Touch drag ────────────────────────────────────────────────────────────
   const onTouchMove = useCallback((e: TouchEvent) => {
     if (!dragging.current) return;
     e.preventDefault();
@@ -109,13 +111,17 @@ export default function Smartsupp() {
     dragging.current = false;
     window.removeEventListener("touchmove", onTouchMove);
     window.removeEventListener("touchend",  onTouchEnd);
-    // Only toggle if user tapped, not dragged
-    if (!moved.current) toggleChat();
-  }, [onTouchMove, open]);
+    // Tap (not drag) → toggle; mark so the subsequent synthetic click is ignored
+    if (!moved.current) {
+      touchHandled.current = true;
+      toggleChat();
+    }
+  }, [onTouchMove, toggleChat]);
 
   function onTouchStart(e: React.TouchEvent) {
-    moved.current    = false;
-    dragging.current = true;
+    moved.current         = false;
+    touchHandled.current  = false;
+    dragging.current      = true;
     const touch = e.touches[0];
     const rect  = (e.currentTarget as HTMLElement).getBoundingClientRect();
     offset.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
@@ -131,8 +137,13 @@ export default function Smartsupp() {
       ref={btnRef}
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
-      onClick={(e) => {
-        // Only fire click if not a drag
+      onClick={() => {
+        // Suppress the synthetic click that fires right after touchend
+        if (touchHandled.current) {
+          touchHandled.current = false;
+          return;
+        }
+        // Desktop fallback (shouldn't happen since we return null on desktop)
         if (!moved.current) toggleChat();
       }}
       style={{
