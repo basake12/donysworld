@@ -53,6 +53,7 @@ export default async function ModelsPage() {
         role: "MODEL",
         modelProfile: {
           status: "ACTIVE",
+          isAvailable: true,
           // Exclude profiles that have blocked this client
           ...(blockedProfileIds.length > 0 && {
             NOT: { id: { in: blockedProfileIds } },
@@ -67,7 +68,7 @@ export default async function ModelsPage() {
           select: {
             id: true, age: true, height: true, city: true, state: true,
             bodyType: true, complexion: true, about: true,
-            profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true,
+            profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
             charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
             gallery: {
               select: { id: true, imageUrl: true, order: true },

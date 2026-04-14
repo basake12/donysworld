@@ -4,19 +4,21 @@ import { prisma } from "@/lib/prisma";
 import { ModelDetailClient } from "./model-detail-client";
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function ModelDetailPage({ params }: PageProps) {
+export default async function ModelDetailPage({ params: paramsPromise }: PageProps) {
   const session = await auth();
   if (!session?.user || session.user.role !== "CLIENT") redirect("/login");
+
+  const params = await paramsPromise;
 
   const [model, wallet, clientProfile] = await Promise.all([
     prisma.user.findFirst({
       where: {
         id: params.id,
         role: "MODEL",
-        modelProfile: { status: "ACTIVE" },
+        modelProfile: { status: "ACTIVE", isAvailable: true },
       },
       include: {
         modelProfile: {
@@ -58,6 +60,7 @@ export default async function ModelDetailPage({ params }: PageProps) {
       modelProfile: {
         status: "ACTIVE",
         state: model.modelProfile.state,
+        isAvailable: true,
       },
     },
     take: 6,
@@ -66,7 +69,7 @@ export default async function ModelDetailPage({ params }: PageProps) {
         select: {
           id: true, age: true, height: true, city: true, state: true,
           bodyType: true, complexion: true, about: true,
-          profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true,
+          profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
           charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
           gallery: { select: { id: true, imageUrl: true, order: true }, take: 1 },
         },

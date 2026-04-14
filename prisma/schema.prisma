@@ -150,12 +150,12 @@ model Session {
 }
 
 // ─────────────────────────────────────────────
-// PASSWORD RESET TOKEN                          ← NEW
+// PASSWORD RESET TOKEN
 // ─────────────────────────────────────────────
 
 model PasswordResetToken {
   id        String   @id @default(cuid())
-  email     String   @unique          // one active token per user at a time
+  email     String   @unique
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -195,6 +195,7 @@ model ModelProfile {
   allowFaceReveal   Boolean     @default(false)
   profilePictureUrl String
   isFaceBlurred     Boolean     @default(true)
+  isAvailable       Boolean     @default(true)
 
   gallery     ModelGallery[]
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)

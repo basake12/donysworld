@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { MapPin, ShieldCheck, Clock, Star, UserCheck } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ interface ModelCardProps {
       profilePictureUrl: string;
       allowFaceReveal: boolean;
       isFaceBlurred: boolean;
+      isAvailable: boolean;
       charges: ModelCharge[];
       gallery: GalleryItem[];
     };
@@ -65,31 +66,20 @@ const BODY_LABEL: Record<string, string> = {
 };
 
 export function ModelCard({ model, revealInfo }: ModelCardProps) {
-  const router       = useRouter();
   const p            = model.modelProfile;
   const isBlurred    = p.isFaceBlurred && !revealInfo.revealed;
   const displayName  = model.nickname || "Model";
   const galleryCount = p.gallery.length;
   const detailHref   = `/client/models/${model.id}`;
 
-  function handleConnect(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    // ── DEBUG: open your browser console to confirm the ID and path ──
-    console.log("[ModelCard] Connect → pushing to:", detailHref);
-    console.log("[ModelCard] model.id =", model.id, "| typeof =", typeof model.id);
-    router.push(detailHref);
-  }
-
   return (
     <div
       className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer"
     >
       {/* ── IMAGE AREA ──────────────────────────────── */}
-      {/* Clicking the image also navigates */}
-      <div
-        onClick={handleConnect}
-        className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0"
+      <Link
+        href={detailHref}
+        className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0 block"
       >
         <FaceBlurImage
           src={p.profilePictureUrl}
@@ -105,10 +95,21 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
         {/* ── Verified badge ── */}
-        <div className="absolute top-2.5 left-2.5 z-10">
+        <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1">
           <div className="flex items-center gap-1 rounded-full bg-gold/90 backdrop-blur-sm px-2 py-0.5 shadow-lg">
             <ShieldCheck className="h-2.5 w-2.5 text-black" />
             <span className="text-[9px] font-black text-black tracking-wider">VERIFIED</span>
+          </div>
+          {/* ── Online / Offline status ── */}
+          <div className="flex items-center gap-1 rounded-full backdrop-blur-sm px-2 py-0.5 shadow-lg w-fit"
+            style={{ background: p.isAvailable ? "rgba(34,197,94,0.85)" : "rgba(0,0,0,0.55)" }}>
+            <span className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              p.isAvailable ? "bg-white animate-pulse" : "bg-white/40"
+            )} />
+            <span className="text-[9px] font-black text-white tracking-wider">
+              {p.isAvailable ? "AVAILABLE" : "UNAVAILABLE"}
+            </span>
           </div>
         </div>
 
@@ -131,7 +132,7 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
             </div>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* ── CARD BODY ────────────────────────────────── */}
       <div className="flex flex-col flex-1 p-3 gap-2">
@@ -167,8 +168,8 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
         </div>
 
         {/* ── Connect CTA ── */}
-        <button
-          onClick={handleConnect}
+        <Link
+          href={detailHref}
           className={cn(
             "mt-auto w-full h-9 font-black rounded-xl text-xs",
             "bg-gold-gradient text-black",
@@ -178,7 +179,7 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
         >
           <UserCheck className="h-3.5 w-3.5" />
           Connect
-        </button>
+        </Link>
       </div>
     </div>
   );

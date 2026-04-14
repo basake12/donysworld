@@ -11,9 +11,9 @@ import {
   ArrowRight, Coins, UserCircle, AlertTriangle,
   TrendingUp, Sparkles, ShieldX,
 } from "lucide-react";
-import { ModelIcon } from "@/components/shared/model-icon";
 import { formatCoins, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
+import { AvailabilityToggle } from "@/components/model/availability-toggle";
 
 const OFFER_STATUS_CONFIG = {
   PENDING:   { label: "Pending",   icon: Clock,        className: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
@@ -34,7 +34,7 @@ export default async function ModelDashboardPage() {
     prisma.wallet.findUnique({ where: { userId: session.user.id } }),
     prisma.modelProfile.findUnique({
       where: { userId: session.user.id },
-      include: { charges: true },
+      select: { id: true, age: true, height: true, city: true, state: true, about: true, isAvailable: true, status: true, charges: true },
     }),
     prisma.offer.findMany({
       where: { modelId: session.user.id },
@@ -52,8 +52,9 @@ export default async function ModelDashboardPage() {
     !modelProfile?.state || !modelProfile?.about || modelProfile?.charges.length === 0;
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
-  const balance   = wallet?.balance ?? 0;
-  const pending   = wallet?.pendingCoins ?? 0;
+  const balance     = wallet?.balance ?? 0;
+  const pending     = wallet?.pendingCoins ?? 0;
+  const isAvailable = modelProfile?.isAvailable ?? true;
 
   return (
     <div className="space-y-5">
@@ -180,6 +181,11 @@ export default async function ModelDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── AVAILABILITY TOGGLE ──────────────── */}
+      {modelProfile?.status === "ACTIVE" && (
+        <AvailabilityToggle initialValue={isAvailable} />
+      )}
 
       {/* ── QUICK ACTIONS ────────────────────── */}
       <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
