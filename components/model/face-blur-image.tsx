@@ -24,8 +24,60 @@ interface FaceBlurImageProps {
   cost?: number;
 }
 
-// Tighter default — covers just the head/face, not the whole upper body
-const DEFAULT_BOX: FaceBox = { x: 25, y: 2, w: 50, h: 32 };
+// Fallback box — used when ML detection hasn't loaded yet or finds no face
+const DEFAULT_BOX: FaceBox = { x: 20, y: 5, w: 60, h: 38 };
+
+// ── face-api.js loader — singleton so models load only once ─────────────────
+let _faceApi: any = null;
+let _faceApiPromise: Promise<any> | null = null;
+
+async function getFaceApi(): Promise<any> {
+  if (_faceApi) return _faceApi;
+  if (_faceApiPromise) return _faceApiPromise;
+
+  _faceApiPromise = (async () => {
+    // Dynamic import — never runs server-side
+    const faceapi = await import("face-api.js");
+    // Load ONLY the tiny model (~190KB) from /public/models/
+    await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+    _faceApi = faceapi;
+    return faceapi;
+  })();
+
+  return _faceApiPromise;
+}
+
+// ── Detect face box on an img element ───────────────────────────────────────
+async function detectFaceBox(imgEl: HTMLImageElement): Promise<FaceBox | null> {
+  try {
+    const faceapi = await getFaceApi();
+    const opts = new faceapi.TinyFaceDetectorOptions({
+      inputSize: 224,
+      scoreThreshold: 0.25,   // low threshold — better recall on profile pics
+    });
+    const result = await faceapi.detectSingleFace(imgEl, opts);
+    if (!result) return null;
+
+    const { box } = result;
+    const iw = imgEl.naturalWidth  || imgEl.width  || 400;
+    const ih = imgEl.naturalHeight || imgEl.height || 500;
+
+    // Add padding around the detected box so forehead and chin are covered
+    const padX = 0.28;
+    const padY = 0.40;
+
+    return {
+      x: Math.max(0,        ((box.x / iw) - padX / 2) * 100),
+      y: Math.max(0,        ((box.y / ih) - padY / 2) * 100),
+      w: Math.min(100,      ((box.width  / iw) + padX) * 100),
+      h: Math.min(100,      ((box.height / ih) + padY) * 100),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
 
 export function FaceBlurImage({
   src,
@@ -46,11 +98,13 @@ export function FaceBlurImage({
   const [canvasReady, setReady] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
+  // Reset when src changes
   useEffect(() => {
     setReady(false);
     setBox(DEFAULT_BOX);
   }, [src]);
 
+  // Expiry countdown
   useEffect(() => {
     if (!expiresAt || blurred) return;
     function calc() {
@@ -65,7 +119,8 @@ export function FaceBlurImage({
     return () => clearInterval(id);
   }, [expiresAt, blurred]);
 
-  const drawBlur = useCallback((img: HTMLImageElement, overrideBox?: FaceBox) => {
+  // ── Draw smooth Gaussian blur inside an elliptical clip ─────────────────
+  const drawBlur = useCallback((img: HTMLImageElement, b: FaceBox) => {
     const canvas  = canvasRef.current;
     const wrapper = wrapperRef.current;
     if (!canvas || !wrapper) return;
@@ -78,64 +133,50 @@ export function FaceBlurImage({
     const ctx = canvas.getContext("2d") as any;
     if (!ctx) return;
 
-    const b = overrideBox ?? box;
-
-    // Ellipse centre and radii
     const ecx = ((b.x + b.w / 2) / 100) * cw;
     const ecy = ((b.y + b.h / 2) / 100) * ch;
     const erx = (b.w / 100) * cw / 2;
     const ery = (b.h / 100) * ch / 2;
 
-    // Scale blur to canvas size so small thumbnails don't wash out
-    // min 8px on tiny cards, max 20px on full-size images
-    const blurPx = Math.max(8, Math.min(20, cw * 0.07));
+    // Blur radius scales with canvas size — subtle on thumbnails, stronger on detail view
+    const blurPx = Math.max(10, Math.min(22, cw * 0.07));
 
-    // 1. Draw full sharp image as base
+    // 1. Draw full sharp image
     ctx.drawImage(img, 0, 0, cw, ch);
 
-    // 2. Clip to ellipse and draw blurred version inside
+    // 2. Clip to ellipse, draw blurred copy on top
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(ecx, ecy, erx, ery, 0, 0, Math.PI * 2);
     ctx.clip();
-
     ctx.filter = `blur(${blurPx}px)`;
     ctx.drawImage(img, 0, 0, cw, ch);
     ctx.filter = "none";
-
     ctx.restore();
-    setReady(true);
-  }, [box]);
 
-  const runDetection = useCallback(async (img: HTMLImageElement) => {
+    setReady(true);
+  }, []);
+
+  // ── Run ML detection then draw ───────────────────────────────────────────
+  const detect = useCallback(async (img: HTMLImageElement) => {
     if (!blurred) return;
-    if ("FaceDetector" in window) {
-      try {
-        const fd    = new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
-        const faces = await fd.detect(img);
-        if (faces.length > 0) {
-          const f   = faces[0].boundingBox;
-          const iw  = img.naturalWidth  || 400;
-          const ih  = img.naturalHeight || 500;
-          const pad = 0.30;
-          const nx  = Math.max(0,        ((f.left   / iw) - pad / 2) * 100);
-          const ny  = Math.max(0,        ((f.top    / ih) - pad / 2) * 100);
-          const nw  = Math.min(100 - nx, ((f.width  / iw) + pad)     * 100);
-          const nh  = Math.min(100 - ny, ((f.height / ih) + pad)     * 100);
-          const detected: FaceBox = { x: nx, y: ny, w: nw, h: nh };
-          setBox(detected);
-          drawBlur(img, detected);
-          return;
-        }
-      } catch { /* fall through */ }
+
+    // Draw with default box immediately so there's always SOMETHING blurred
+    drawBlur(img, DEFAULT_BOX);
+
+    // Run ML detection in background — updates blur if face is found
+    const detectedBox = await detectFaceBox(img);
+    if (detectedBox) {
+      setBox(detectedBox);
+      drawBlur(img, detectedBox);
     }
-    drawBlur(img);
   }, [blurred, drawBlur]);
 
+  // Re-draw when box changes (e.g. after async detection)
   useEffect(() => {
     const img = imgRef.current;
     if (!img || !blurred) return;
-    if (img.complete && img.naturalWidth > 0) drawBlur(img);
+    if (img.complete && img.naturalWidth > 0) drawBlur(img, box);
   }, [box, blurred, drawBlur]);
 
   const wrapperCls = fill
@@ -154,7 +195,7 @@ export function FaceBlurImage({
         priority={priority}
         crossOrigin="anonymous"
         onLoad={(e) => {
-          if (blurred) runDetection(e.currentTarget as HTMLImageElement);
+          if (blurred) detect(e.currentTarget as HTMLImageElement);
         }}
       />
 
