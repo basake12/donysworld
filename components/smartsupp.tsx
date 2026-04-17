@@ -17,13 +17,14 @@ export default function Smartsupp() {
   const [open, setOpen]         = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Drag state
-  const btnRef        = useRef<HTMLButtonElement>(null);
-  const dragging      = useRef(false);
-  const moved         = useRef(false);
-  const touchHandled  = useRef(false); // prevents click from firing after touchend
-  const offset        = useRef({ x: 0, y: 0 });
-  const [pos, setPos] = useState({ x: 24, y: 24 }); // distance from right/bottom
+  const btnRef       = useRef<HTMLButtonElement>(null);
+  const dragging     = useRef(false);
+  const moved        = useRef(false);
+  const touchHandled = useRef(false);
+  const offset       = useRef({ x: 0, y: 0 });
+
+  // Start bottom-right, above mobile nav bar
+  const [pos, setPos] = useState({ x: 16, y: 80 });
 
   // ── Detect mobile ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -32,13 +33,9 @@ export default function Smartsupp() {
 
   // ── Load Smartsupp ────────────────────────────────────────────────────────
   useEffect(() => {
-    window._smartsupp = window._smartsupp ?? {};
-    window._smartsupp.key = SMARTSUPP_KEY;
-
-    // On mobile: hide the native widget button so our custom one takes over
-    if (window.matchMedia("(max-width: 768px)").matches) {
-      window._smartsupp.hideWidget = true;
-    }
+    window._smartsupp             = window._smartsupp ?? {};
+    window._smartsupp.key         = SMARTSUPP_KEY;
+    window._smartsupp.hideWidget  = true; // hide native button before load
 
     const s = document.getElementsByTagName("script")[0];
     const c = document.createElement("script");
@@ -46,23 +43,31 @@ export default function Smartsupp() {
     c.charset = "utf-8";
     c.async   = true;
     c.src     = "https://www.smartsuppchat.com/loader.js?";
-    c.onload  = () => setReady(true);
+
+    c.onload = () => {
+      // Belt-and-suspenders: also call the API to hide after load
+      window.smartsupp?.("chat:hide");
+      setReady(true);
+    };
+
     s.parentNode?.insertBefore(c, s);
   }, []);
 
-  // ── Toggle chat — memoized so callbacks never capture a stale value ───────
+  // ── Toggle chat ───────────────────────────────────────────────────────────
   const toggleChat = useCallback(() => {
     if (!window.smartsupp) return;
     setOpen((prev) => {
       if (prev) {
         window.smartsupp!("chat:close");
+        window.smartsupp!("chat:hide");
         return false;
       } else {
+        window.smartsupp!("chat:show");
         window.smartsupp!("chat:open");
         return true;
       }
     });
-  }, []); // no deps needed — reads `open` via the setter callback
+  }, []);
 
   // ── Mouse drag ────────────────────────────────────────────────────────────
   const onMouseMove = useCallback((e: MouseEvent) => {
@@ -70,8 +75,8 @@ export default function Smartsupp() {
     moved.current = true;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const bw = btnRef.current?.offsetWidth  ?? 56;
-    const bh = btnRef.current?.offsetHeight ?? 56;
+    const bw = btnRef.current?.offsetWidth  ?? 48;
+    const bh = btnRef.current?.offsetHeight ?? 48;
     const newX = Math.max(8, Math.min(vw - bw - 8, e.clientX - offset.current.x));
     const newY = Math.max(8, Math.min(vh - bh - 8, e.clientY - offset.current.y));
     setPos({ x: vw - newX - bw, y: vh - newY - bh });
@@ -100,8 +105,8 @@ export default function Smartsupp() {
     const touch = e.touches[0];
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const bw = btnRef.current?.offsetWidth  ?? 56;
-    const bh = btnRef.current?.offsetHeight ?? 56;
+    const bw = btnRef.current?.offsetWidth  ?? 48;
+    const bh = btnRef.current?.offsetHeight ?? 48;
     const newX = Math.max(8, Math.min(vw - bw - 8, touch.clientX - offset.current.x));
     const newY = Math.max(8, Math.min(vh - bh - 8, touch.clientY - offset.current.y));
     setPos({ x: vw - newX - bw, y: vh - newY - bh });
@@ -111,7 +116,6 @@ export default function Smartsupp() {
     dragging.current = false;
     window.removeEventListener("touchmove", onTouchMove);
     window.removeEventListener("touchend",  onTouchEnd);
-    // Tap (not drag) → toggle; mark so the subsequent synthetic click is ignored
     if (!moved.current) {
       touchHandled.current = true;
       toggleChat();
@@ -119,9 +123,9 @@ export default function Smartsupp() {
   }, [onTouchMove, toggleChat]);
 
   function onTouchStart(e: React.TouchEvent) {
-    moved.current         = false;
-    touchHandled.current  = false;
-    dragging.current      = true;
+    moved.current        = false;
+    touchHandled.current = false;
+    dragging.current     = true;
     const touch = e.touches[0];
     const rect  = (e.currentTarget as HTMLElement).getBoundingClientRect();
     offset.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
@@ -129,7 +133,6 @@ export default function Smartsupp() {
     window.addEventListener("touchend",  onTouchEnd);
   }
 
-  // Only render the custom button on mobile
   if (!isMobile) return null;
 
   return (
@@ -138,35 +141,21 @@ export default function Smartsupp() {
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
       onClick={() => {
-        // Suppress the synthetic click that fires right after touchend
-        if (touchHandled.current) {
-          touchHandled.current = false;
-          return;
-        }
-        // Desktop fallback (shouldn't happen since we return null on desktop)
+        if (touchHandled.current) { touchHandled.current = false; return; }
         if (!moved.current) toggleChat();
       }}
-      style={{
-        position: "fixed",
-        right:    pos.x,
-        bottom:   pos.y,
-        zIndex:   9997,
-      }}
+      style={{ position: "fixed", right: pos.x, bottom: pos.y, zIndex: 9997 }}
       className={[
         "flex items-center justify-center",
-        "h-14 w-14 rounded-full shadow-2xl",
+        "h-12 w-12 rounded-full shadow-xl",
         "cursor-grab active:cursor-grabbing select-none touch-none",
         "transition-colors duration-200",
-        open
-          ? "bg-destructive text-white"
-          : "bg-gold-gradient text-black",
-        !ready && "opacity-50 pointer-events-none",
+        open ? "bg-destructive text-white" : "bg-gold-gradient text-black",
+        !ready && "opacity-40 pointer-events-none",
       ].filter(Boolean).join(" ")}
       aria-label={open ? "Close chat" : "Open chat"}
     >
-      {open
-        ? <X className="h-6 w-6" />
-        : <MessageCircle className="h-6 w-6" />}
+      {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
     </button>
   );
 }
