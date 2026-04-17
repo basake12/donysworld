@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { ModelCard } from "@/components/model/model-card";
 import { useToast } from "@/components/ui/use-toast";
 import {
   MapPin, Ruler, Coins, Eye, Clock, ShieldCheck,
-  ChevronLeft, Images, User, Sparkles, Lock, ZoomIn, X,
+  ChevronLeft, User, Sparkles, Lock, X,
 } from "lucide-react";
 import { formatCoins, FACE_REVEAL_COST, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
@@ -56,9 +55,9 @@ interface ModelDetailClientProps {
 // ─── CONSTANTS ──────────────────────────────────
 
 const MEET_CONFIG: Record<string, { label: string; gradient: string; border: string; text: string; dot: string }> = {
-  SHORT:     { label: "Short Meet",  gradient: "from-blue-500/15 to-blue-600/5",   border: "border-blue-500/25",   text: "text-blue-400",   dot: "bg-blue-400" },
+  SHORT:     { label: "Short Meet",  gradient: "from-blue-500/15 to-blue-600/5",    border: "border-blue-500/25",   text: "text-blue-400",   dot: "bg-blue-400" },
   OVERNIGHT: { label: "Overnight",   gradient: "from-violet-500/15 to-violet-600/5", border: "border-violet-500/25", text: "text-violet-400", dot: "bg-violet-400" },
-  WEEKEND:   { label: "Weekend",     gradient: "from-rose-500/15 to-rose-600/5",   border: "border-rose-500/25",   text: "text-rose-400",   dot: "bg-rose-400" },
+  WEEKEND:   { label: "Weekend",     gradient: "from-rose-500/15 to-rose-600/5",    border: "border-rose-500/25",   text: "text-rose-400",   dot: "bg-rose-400" },
 };
 
 const BODY_LABEL: Record<string, string> = {
@@ -77,19 +76,78 @@ const COMPLEXION_LABEL: Record<string, string> = {
   FAIR: "Fair", LIGHT: "Light", MEDIUM: "Medium", OLIVE: "Olive", TAN: "Tan", DARK: "Dark",
 };
 
-// ─── LIGHTBOX ────────────────────────────────────
+// ─── LIGHTBOX — blurs gallery images, shows reveal CTA ──────────────────────
 
-function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+interface LightboxProps {
+  src: string;
+  onClose: () => void;
+  isBlurred: boolean;
+  expiresAt: string | null;
+  allowReveal: boolean;
+  onReveal: () => Promise<void>;
+  revealing: boolean;
+}
+
+function Lightbox({ src, onClose, isBlurred, expiresAt, allowReveal, onReveal, revealing }: LightboxProps) {
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/98 backdrop-blur-md animate-fade-in"
-      onClick={onClose}>
-      <button onClick={onClose}
-        className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/20 border border-white/10 transition-all">
+    <div
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/98 backdrop-blur-md animate-fade-in"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/20 border border-white/10 transition-all"
+      >
         <X className="h-5 w-5" />
       </button>
-      <div className="relative w-full max-w-lg mx-4 max-h-[88vh] aspect-[3/4]" onClick={(e) => e.stopPropagation()}>
-        <Image src={src} alt="Gallery photo" fill className="object-contain rounded-2xl" sizes="640px" />
+
+      {/* Image container — consistent 3:4 aspect ratio, never overflows screen */}
+      <div
+        className="relative w-full max-w-sm mx-4 rounded-2xl overflow-hidden"
+        style={{ aspectRatio: "3/4", maxHeight: "82vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <FaceBlurImage
+          src={src}
+          alt="Gallery photo"
+          fill
+          blurred={isBlurred}
+          sizes="480px"
+          expiresAt={expiresAt}
+        />
+
+        {/* Reveal CTA inside lightbox */}
+        {isBlurred && allowReveal && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <button
+              onClick={(e) => { e.stopPropagation(); onReveal(); }}
+              disabled={revealing}
+              className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-black/85 border border-gold/50 text-gold hover:bg-black hover:border-gold transition-all backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            >
+              <Eye className="h-4 w-4" />
+              <span className="text-xs font-black tracking-wide">
+                {revealing ? "Revealing..." : "Unlock Face · 1,000 DC · 24H"}
+              </span>
+              <div className="flex items-center gap-1 border-l border-gold/30 pl-2.5">
+                <Clock className="h-3 w-3 text-gold/60" />
+                <span className="text-[10px] text-gold/70 font-bold">24H</span>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Revealed badge inside lightbox */}
+        {!isBlurred && expiresAt && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
+              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <Eye className="h-3.5 w-3.5 text-emerald-400" />
+              <p className="text-xs text-emerald-400 font-bold">Unlocked · 24h</p>
+            </div>
+          </div>
+        )}
       </div>
+
       <p className="absolute bottom-5 text-[10px] text-white/25 tracking-widest">TAP ANYWHERE TO CLOSE</p>
     </div>
   );
@@ -135,7 +193,6 @@ export function ModelDetailClient({
     }
   }
 
-  // Dummy onMakeOffer for other models — opens modal
   const [otherOfferModal, setOtherOfferModal] = useState<{
     open: boolean;
     model: { id: string; fullName: string; profileId: string; charges: ModelCharge[] } | null;
@@ -152,13 +209,25 @@ export function ModelDetailClient({
 
   return (
     <>
-      {lightboxImg && <Lightbox src={lightboxImg} onClose={() => setLightboxImg(null)} />}
+      {/* ── LIGHTBOX — now supports blur + reveal ── */}
+      {lightboxImg && (
+        <Lightbox
+          src={lightboxImg}
+          onClose={() => setLightboxImg(null)}
+          isBlurred={isBlurred}
+          expiresAt={revealInfo.expiresAt}
+          allowReveal={p.allowFaceReveal && p.isFaceBlurred}
+          onReveal={async () => {
+            await handleReveal();
+          }}
+          revealing={revealing}
+        />
+      )}
 
       <div className="min-h-screen bg-background pb-32">
 
         {/* ── GALLERY STRIP AT TOP ─────────────── */}
         <div className="bg-black">
-          {/* Back button over gallery */}
           <div className="relative">
             <div className="absolute top-4 left-4 z-20">
               <button
@@ -174,8 +243,8 @@ export function ModelDetailClient({
               <span className="text-[10px] font-black text-black tracking-widest">VERIFIED</span>
             </div>
 
-            {/* Hero image */}
-            <div className="relative h-[55vh] min-h-[360px] overflow-hidden">
+            {/* Hero image — consistent 4:5 aspect ratio */}
+            <div className="relative w-full overflow-hidden" style={{ aspectRatio: "4/5", maxHeight: "65vh", minHeight: 320 }}>
               <FaceBlurImage
                 src={p.profilePictureUrl}
                 alt={displayName}
@@ -209,24 +278,25 @@ export function ModelDetailClient({
             </div>
           </div>
 
-          {/* Gallery thumbnails row */}
+          {/* ── Gallery thumbnail strip — ALL images blurred when isBlurred ── */}
           {allImages.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto px-4 py-3 scrollbar-hide bg-black/90">
               {allImages.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setLightboxImg(img)}
-                  className="relative shrink-0 h-16 w-12 rounded-lg overflow-hidden border-2 border-transparent hover:border-gold/60 transition-all group/thumb"
+                  className="relative shrink-0 rounded-lg overflow-hidden border-2 border-transparent hover:border-gold/60 transition-all group/thumb"
+                  style={{ width: 48, height: 64 }}       // consistent 3:4 ratio for all thumbs
                 >
-                  {idx === 0 && isBlurred ? (
-                    <FaceBlurImage src={img} alt={displayName} fill blurred sizes="48px" />
-                  ) : (
-                    <Image src={img} alt={`Photo ${idx + 1}`} fill
-                      className="object-cover object-top group-hover/thumb:scale-105 transition-transform" sizes="48px" />
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-all flex items-center justify-center">
-                    <ZoomIn className="h-3 w-3 text-white opacity-0 group-hover/thumb:opacity-100" />
-                  </div>
+                  {/* ALL thumbnails use FaceBlurImage — no more idx===0 special case */}
+                  <FaceBlurImage
+                    src={img}
+                    alt={`Photo ${idx + 1}`}
+                    fill
+                    blurred={isBlurred}
+                    sizes="48px"
+                    expiresAt={revealInfo.expiresAt}
+                  />
                   {idx === 0 && (
                     <div className="absolute bottom-0 inset-x-0 bg-gold text-black text-[7px] font-black text-center py-0.5">
                       MAIN
@@ -277,11 +347,10 @@ export function ModelDetailClient({
             </div>
           )}
 
-          {/* Face reveal */}
+          {/* Face reveal card */}
           {p.isFaceBlurred && p.allowFaceReveal && (
             isBlurred ? (
-              <button onClick={handleReveal} disabled={revealing}
-                className="w-full disabled:opacity-60 disabled:cursor-not-allowed group">
+              <button onClick={handleReveal} disabled={revealing} className="w-full disabled:opacity-60 disabled:cursor-not-allowed group">
                 <div className="rounded-2xl border border-gold/35 bg-gradient-to-br from-amber-950/70 via-yellow-900/40 to-amber-950/70 hover:border-gold/60 transition-all p-4 flex items-center gap-3 overflow-hidden relative">
                   <div className="absolute inset-0 shimmer opacity-20 pointer-events-none" />
                   <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gold/20 border border-gold/40">
@@ -360,7 +429,7 @@ export function ModelDetailClient({
             </div>
           )}
 
-          {/* ── OTHER MODELS IN STATE ────────── */}
+          {/* Other models in state */}
           {otherModels.length > 0 && (
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
@@ -368,12 +437,10 @@ export function ModelDetailClient({
                   <MapPin className="h-3 w-3 text-gold" />
                   More Models in {p.state}
                 </p>
-                <Link href="/client/models"
-                  className="text-[10px] text-gold hover:text-gold-light font-bold transition-colors">
+                <Link href="/client/models" className="text-[10px] text-gold hover:text-gold-light font-bold transition-colors">
                   View All →
                 </Link>
               </div>
-
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {otherModels.map((m) => (
                   <ModelCard
@@ -399,13 +466,12 @@ export function ModelDetailClient({
         <div className="fixed bottom-0 inset-x-0 z-50">
           <div className="absolute inset-0 bg-card/92 backdrop-blur-xl border-t border-border" />
           <div className="relative max-w-2xl mx-auto flex items-center gap-3 px-4 py-3.5">
-            <div className="h-10 w-10 rounded-xl overflow-hidden border border-border bg-secondary shrink-0">
+            <div className="relative h-10 w-10 rounded-xl overflow-hidden border border-border bg-secondary shrink-0">
               <FaceBlurImage
                 src={p.profilePictureUrl}
                 alt={displayName}
-                fill={false}
+                fill
                 blurred={isBlurred}
-                className="h-full w-full object-cover object-top"
                 sizes="40px"
               />
             </div>

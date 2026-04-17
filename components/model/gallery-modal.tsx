@@ -79,8 +79,8 @@ export function GalleryModal({
           </button>
         </div>
 
-        {/* ── MAIN IMAGE ──────────────────────── */}
-        <div className="relative bg-black" style={{ height: 460 }}>
+        {/* ── MAIN IMAGE — consistent 3:4 aspect ratio ── */}
+        <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: "3/4", maxHeight: "65vh" }}>
           <FaceBlurImage
             key={allImages[current]}
             src={allImages[current]}
@@ -92,9 +92,9 @@ export function GalleryModal({
             expiresAt={expiresAt}
           />
 
-          {/* Subtle side gradients */}
-          <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-black/40 to-transparent pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-black/40 to-transparent pointer-events-none" />
+          {/* Side gradients */}
+          <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-black/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-black/40 to-transparent pointer-events-none" />
 
           {/* ── Navigation arrows ── */}
           {allImages.length > 1 && (
@@ -133,9 +133,7 @@ export function GalleryModal({
           {/* ── No reveal notice ── */}
           {isBlurred && !allowReveal && (
             <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 to-transparent pt-8 pb-4 px-4 text-center">
-              <p className="text-xs text-white/50">
-                Face reveal not enabled by this model
-              </p>
+              <p className="text-xs text-white/50">Face reveal not enabled by this model</p>
             </div>
           )}
 
@@ -165,15 +163,13 @@ export function GalleryModal({
               <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <Eye className="h-3.5 w-3.5 text-emerald-400" />
-                <p className="text-xs text-emerald-400 font-bold">
-                  Face Unlocked · 24h access
-                </p>
+                <p className="text-xs text-emerald-400 font-bold">Face Unlocked · 24h access</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── THUMBNAIL STRIP ─────────────────── */}
+        {/* ── THUMBNAIL STRIP — all blurred when isBlurred ── */}
         {allImages.length > 1 && (
           <div className="flex gap-2 overflow-x-auto px-4 py-3 border-t border-white/8 bg-black/80 scrollbar-hide">
             {allImages.map((img, i) => (
@@ -181,18 +177,20 @@ export function GalleryModal({
                 key={i}
                 onClick={() => setCurrent(i)}
                 className={cn(
-                  "relative shrink-0 h-14 w-14 rounded-xl overflow-hidden border-2 transition-all duration-200",
+                  "relative shrink-0 rounded-xl overflow-hidden border-2 transition-all duration-200",
+                  "h-14 w-10",                        // fixed 5:7 ratio — consistent regardless of source
                   i === current
                     ? "border-gold shadow-md shadow-gold/30 scale-105"
                     : "border-transparent opacity-50 hover:opacity-80 hover:border-white/20"
                 )}
               >
+                {/* ALL thumbnails use FaceBlurImage so blur applies everywhere */}
                 <FaceBlurImage
                   src={img}
                   alt={`Photo ${i + 1}`}
                   fill
-                  blurred={isBlurred && i === 0}
-                  sizes="56px"
+                  blurred={isBlurred}
+                  sizes="40px"
                 />
                 {i === 0 && (
                   <div className="absolute bottom-0 inset-x-0 bg-black/60 py-0.5">
