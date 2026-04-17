@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, ShieldCheck, Clock, Star, UserCheck } from "lucide-react";
+import { MapPin, ShieldCheck, Clock, UserCheck } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
 import { cn } from "@/lib/utils";
 
@@ -73,9 +73,8 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
   const detailHref   = `/client/models/${model.id}`;
 
   return (
-    <div
-      className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer"
-    >
+    <div className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer">
+
       {/* ── IMAGE AREA ──────────────────────────────── */}
       <Link
         href={detailHref}
@@ -91,39 +90,28 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
           expiresAt={revealInfo.expiresAt}
         />
 
-        {/* Subtle bottom gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
-        {/* ── Verified badge ── */}
-        <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1">
+        {/* ── TOP LEFT: Verified badge + green dot side by side ── */}
+        <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
           <div className="flex items-center gap-1 rounded-full bg-gold/90 backdrop-blur-sm px-2 py-0.5 shadow-lg">
             <ShieldCheck className="h-2.5 w-2.5 text-black" />
             <span className="text-[9px] font-black text-black tracking-wider">VERIFIED</span>
           </div>
-          {/* ── Online / Offline status ── */}
-          <div className="flex items-center gap-1 rounded-full backdrop-blur-sm px-2 py-0.5 shadow-lg w-fit"
-            style={{ background: p.isAvailable ? "rgba(34,197,94,0.85)" : "rgba(0,0,0,0.55)" }}>
-            <span className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              p.isAvailable ? "bg-white animate-pulse" : "bg-white/40"
-            )} />
-            <span className="text-[9px] font-black text-white tracking-wider">
-              {p.isAvailable ? "AVAILABLE" : "UNAVAILABLE"}
-            </span>
-          </div>
+
+          {/* Green availability dot — only shown when available, no text */}
+          {p.isAvailable && (
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse ring-2 ring-black/30 shadow-md shadow-emerald-500/40" />
+          )}
         </div>
 
-        {/* ── Gallery count badge ── */}
-        {galleryCount > 0 && !revealInfo.expiresAt && (
-          <div className="absolute top-2.5 right-2.5 z-10">
-            <div className="flex items-center gap-1 rounded-full bg-black/70 border border-white/10 backdrop-blur-sm px-2 py-0.5">
-              <Star className="h-2.5 w-2.5 text-gold/80" />
-              <span className="text-[9px] font-medium text-white/80">{galleryCount + 1} photos</span>
-            </div>
+        {/* ── TOP RIGHT: photos count OR unlocked — never conflicts ── */}
+        {!revealInfo.expiresAt && galleryCount > 0 && (
+          <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-sm px-2 py-0.5">
+            <span className="text-[9px] font-medium text-white/80">{galleryCount + 1} photos</span>
           </div>
         )}
 
-        {/* ── Unlocked badge ── */}
         {!isBlurred && revealInfo.expiresAt && (
           <div className="absolute top-2.5 right-2.5 z-10">
             <div className="flex items-center gap-1 rounded-full bg-emerald-500/90 backdrop-blur-sm px-2 py-0.5">
@@ -137,7 +125,6 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
       {/* ── CARD BODY ────────────────────────────────── */}
       <div className="flex flex-col flex-1 p-3 gap-2">
 
-        {/* Name + location */}
         <div>
           <h3 className="font-black text-foreground text-sm leading-tight tracking-wide truncate">
             {displayName}
@@ -150,7 +137,6 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
           </div>
         </div>
 
-        {/* Body type + height pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {p.bodyType && (
             <span className={cn(
@@ -167,7 +153,6 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
           )}
         </div>
 
-        {/* ── Connect CTA ── */}
         <Link
           href={detailHref}
           className={cn(
