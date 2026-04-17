@@ -24,8 +24,8 @@ interface FaceBlurImageProps {
   cost?: number;
 }
 
-const DEFAULT_BOX: FaceBox = { x: 15, y: 2, w: 70, h: 48 };
-const BLUR_PX = 24;
+// Tighter default — covers just the head/face, not the whole upper body
+const DEFAULT_BOX: FaceBox = { x: 25, y: 2, w: 50, h: 32 };
 
 export function FaceBlurImage({
   src,
@@ -46,13 +46,11 @@ export function FaceBlurImage({
   const [canvasReady, setReady] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
-  // Reset when src changes
   useEffect(() => {
     setReady(false);
     setBox(DEFAULT_BOX);
   }, [src]);
 
-  // Expiry countdown
   useEffect(() => {
     if (!expiresAt || blurred) return;
     function calc() {
@@ -77,30 +75,31 @@ export function FaceBlurImage({
     canvas.width  = cw;
     canvas.height = ch;
 
-    // Cast to any once — avoids the "never" narrowing issue that arises
-    // when TypeScript sees CanvasRenderingContext2D always has .filter typed
     const ctx = canvas.getContext("2d") as any;
     if (!ctx) return;
 
-    const b   = overrideBox ?? box;
+    const b = overrideBox ?? box;
+
+    // Ellipse centre and radii
     const ecx = ((b.x + b.w / 2) / 100) * cw;
     const ecy = ((b.y + b.h / 2) / 100) * ch;
     const erx = (b.w / 100) * cw / 2;
     const ery = (b.h / 100) * ch / 2;
 
+    // Scale blur to canvas size so small thumbnails don't wash out
+    // min 8px on tiny cards, max 20px on full-size images
+    const blurPx = Math.max(8, Math.min(20, cw * 0.07));
+
     // 1. Draw full sharp image as base
     ctx.drawImage(img, 0, 0, cw, ch);
 
-    // 2. Clip to ellipse, draw blurred copy on top
+    // 2. Clip to ellipse and draw blurred version inside
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(ecx, ecy, erx, ery, 0, 0, Math.PI * 2);
     ctx.clip();
 
-    // Smooth Gaussian blur — Chrome, Firefox, Edge, Safari 18+
-    // On older Safari the filter is silently ignored and the image
-    // draws sharp inside the ellipse (still partially obscures face)
-    ctx.filter = `blur(${BLUR_PX}px)`;
+    ctx.filter = `blur(${blurPx}px)`;
     ctx.drawImage(img, 0, 0, cw, ch);
     ctx.filter = "none";
 
@@ -118,7 +117,7 @@ export function FaceBlurImage({
           const f   = faces[0].boundingBox;
           const iw  = img.naturalWidth  || 400;
           const ih  = img.naturalHeight || 500;
-          const pad = 0.35;
+          const pad = 0.30;
           const nx  = Math.max(0,        ((f.left   / iw) - pad / 2) * 100);
           const ny  = Math.max(0,        ((f.top    / ih) - pad / 2) * 100);
           const nw  = Math.min(100 - nx, ((f.width  / iw) + pad)     * 100);
@@ -128,7 +127,7 @@ export function FaceBlurImage({
           drawBlur(img, detected);
           return;
         }
-      } catch { /* fall through to default box */ }
+      } catch { /* fall through */ }
     }
     drawBlur(img);
   }, [blurred, drawBlur]);
