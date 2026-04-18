@@ -196,6 +196,7 @@ model ModelProfile {
   profilePictureUrl String
   isFaceBlurred     Boolean     @default(true)
   isAvailable       Boolean     @default(true)
+  faceBox           Json?                          // {x,y,w,h} in % — set at upload time
 
   gallery     ModelGallery[]
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -215,6 +216,7 @@ model ModelGallery {
   id             String   @id @default(cuid())
   modelProfileId String
   imageUrl       String
+  faceBox        Json?    // {x,y,w,h} in % — set at upload time
   order          Int      @default(0)
   createdAt      DateTime @default(now())
 

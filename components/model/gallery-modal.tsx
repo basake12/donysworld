@@ -10,6 +10,7 @@ interface GalleryItem {
   id: string;
   imageUrl: string;
   order: number;
+  faceBox?: { x: number; y: number; w: number; h: number } | null;
 }
 
 interface GalleryModalProps {
@@ -17,6 +18,7 @@ interface GalleryModalProps {
   onClose: () => void;
   modelName: string;
   profilePicture: string;
+  profileFaceBox?: { x: number; y: number; w: number; h: number } | null;
   gallery: GalleryItem[];
   isBlurred: boolean;
   allowReveal: boolean;
@@ -30,6 +32,7 @@ export function GalleryModal({
   onClose,
   modelName,
   profilePicture,
+  profileFaceBox,
   gallery,
   isBlurred,
   allowReveal,
@@ -39,7 +42,10 @@ export function GalleryModal({
 }: GalleryModalProps) {
   const [current, setCurrent] = useState(0);
 
-  const allImages = [profilePicture, ...gallery.map((g) => g.imageUrl)];
+  const allImages = [
+    { src: profilePicture, faceBox: profileFaceBox },
+    ...gallery.map((g) => ({ src: g.imageUrl, faceBox: g.faceBox })),
+  ];
 
   function prev() {
     setCurrent((s) => (s === 0 ? allImages.length - 1 : s - 1));
@@ -82,11 +88,12 @@ export function GalleryModal({
         {/* ── MAIN IMAGE — consistent 3:4 aspect ratio ── */}
         <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: "3/4", maxHeight: "65vh" }}>
           <FaceBlurImage
-            key={allImages[current]}
-            src={allImages[current]}
+            key={allImages[current].src}
+            src={allImages[current].src}
             alt={modelName}
             fill
             blurred={isBlurred}
+            faceBox={allImages[current].faceBox}
             sizes="(max-width: 640px) 100vw, 512px"
             priority
             expiresAt={expiresAt}
@@ -186,10 +193,11 @@ export function GalleryModal({
               >
                 {/* ALL thumbnails use FaceBlurImage so blur applies everywhere */}
                 <FaceBlurImage
-                  src={img}
+                  src={img.src}
                   alt={`Photo ${i + 1}`}
                   fill
                   blurred={isBlurred}
+                  faceBox={img.faceBox}
                   sizes="40px"
                 />
                 {i === 0 && (

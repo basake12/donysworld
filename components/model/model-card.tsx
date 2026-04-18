@@ -40,6 +40,7 @@ interface ModelCardProps {
       allowFaceReveal: boolean;
       isFaceBlurred: boolean;
       isAvailable: boolean;
+      faceBox?: { x: number; y: number; w: number; h: number } | null;
       charges: ModelCharge[];
       gallery: GalleryItem[];
     };
@@ -81,6 +82,7 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
           alt={displayName}
           fill
           blurred={isBlurred}
+          faceBox={p.faceBox}
           sizes="(max-width: 640px) 50vw, 320px"
           priority
           expiresAt={revealInfo.expiresAt}

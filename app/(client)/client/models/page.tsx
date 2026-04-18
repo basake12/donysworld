@@ -68,10 +68,10 @@ export default async function ModelsPage() {
           select: {
             id: true, age: true, height: true, city: true, state: true,
             bodyType: true, complexion: true, about: true,
-            profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
+            profilePictureUrl: true, allowFaceReveal: true, isFaceBlurred: true, isAvailable: true, faceBox: true,
             charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
             gallery: {
-              select: { id: true, imageUrl: true, order: true },
+              select: { id: true, imageUrl: true, order: true, faceBox: true },
               orderBy: { order: "asc" },
             },
           },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { supabaseAdmin, BUCKETS } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 import { Role, Gender, DocumentType } from "@prisma/client";
+import { detectFaceFromUrl } from "@/lib/facebox";
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -127,6 +128,9 @@ export async function POST(req: NextRequest) {
         .from(BUCKETS.PROFILE_PICTURES)
         .getPublicUrl(uploadedProfilePath);
 
+      // Detect face bounding box — runs after upload, non-fatal if it fails
+      const faceBox = await detectFaceFromUrl(publicUrlData.publicUrl);
+
       await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {
@@ -147,6 +151,7 @@ export async function POST(req: NextRequest) {
             bodyType: "AVERAGE", complexion: "MEDIUM", about: "",
             profilePictureUrl: publicUrlData.publicUrl,
             allowFaceReveal: false, isFaceBlurred: true,
+            ...(faceBox && { faceBox }),
           },
         });
 

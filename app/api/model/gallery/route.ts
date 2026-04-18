@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin, BUCKETS } from "@/lib/supabase";
+import { detectFaceFromUrl } from "@/lib/facebox";
 
 function err(msg: string, status = 400) {
   return NextResponse.json({ error: msg }, { status });
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     if (!allowed.includes(file.type)) return err("JPG, PNG or WebP only");
     if (file.size > 8 * 1024 * 1024) return err("Max 8MB per image");
 
-    const ext = file.name.split(".").pop();
+    const ext  = file.name.split(".").pop();
     const path = `gallery/${profile.id}_${Date.now()}.${ext}`;
 
     const buf = Buffer.from(await file.arrayBuffer());
@@ -64,11 +65,17 @@ export async function POST(req: NextRequest) {
       .from(BUCKETS.PROFILE_PICTURES)
       .getPublicUrl(path);
 
+    const imageUrl = urlData.publicUrl;
+
+    // ── Detect face in uploaded gallery image ─────────────────────────────
+    const faceBox = await detectFaceFromUrl(imageUrl);
+
     const item = await prisma.modelGallery.create({
       data: {
         modelProfileId: profile.id,
-        imageUrl: urlData.publicUrl,
-        order: profile.gallery.length,
+        imageUrl,
+        faceBox:        faceBox ?? undefined,
+        order:          profile.gallery.length,
       },
     });
 
