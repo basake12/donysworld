@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin, BUCKETS } from "@/lib/supabase";
 import { detectFaceFromUrl } from "@/lib/facebox";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
       data: {
         modelProfileId: profile.id,
         imageUrl,
-        faceBox:        faceBox ?? undefined,
+        faceBox:        faceBox ? (faceBox as unknown as Prisma.InputJsonValue) : undefined,
         order:          profile.gallery.length,
       },
     });
