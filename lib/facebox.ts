@@ -66,14 +66,14 @@ export async function detectFaceFromUrl(imageUrl: string): Promise<FaceBox | nul
     if (!result) return null;
 
     const { box }  = result;
-    const padX     = 0.30;
-    const padY     = 0.45;
+    const padX     = 0.08;
+    const padY     = 0.12;
 
     return {
-      x: Math.max(0,   ((box.x      / img.width)  - padX / 2) * 100),
-      y: Math.max(0,   ((box.y      / img.height) - padY / 2) * 100),
-      w: Math.min(100, ((box.width  / img.width)  + padX)     * 100),
-      h: Math.min(100, ((box.height / img.height) + padY)     * 100),
+      x: Math.max(0,   ((box.x      / img.width)  - padX)     * 100),
+      y: Math.max(0,   ((box.y      / img.height) - padY)     * 100),
+      w: Math.min(100, ((box.width  / img.width)  + padX * 2) * 100),
+      h: Math.min(100, ((box.height / img.height) + padY * 2) * 100),
     };
   } catch (err) {
     console.error("[facebox] Detection failed:", err);

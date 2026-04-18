@@ -27,7 +27,7 @@ interface FaceBlurImageProps {
 }
 
 // Fallback — used when faceBox is null (existing models before backfill)
-const DEFAULT_BOX: FaceBox = { x: 22, y: 4, w: 56, h: 35 };
+const DEFAULT_BOX: FaceBox = { x: 28, y: 3, w: 44, h: 28 };
 
 export function FaceBlurImage({
   src,
@@ -91,8 +91,8 @@ export function FaceBlurImage({
           style={{
             clipPath,
             WebkitClipPath:      clipPath,
-            backdropFilter:      "blur(20px) saturate(1.1)",
-            WebkitBackdropFilter:"blur(20px) saturate(1.1)",
+            backdropFilter:      "blur(24px) brightness(1.05)",
+            WebkitBackdropFilter:"blur(24px) brightness(1.05)",
           }}
         />
       )}
