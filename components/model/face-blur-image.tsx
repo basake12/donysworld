@@ -14,7 +14,6 @@ interface FaceBlurImageProps {
   src: string;
   alt: string;
   blurred: boolean;
-  /** Pre-computed bounding box from DB — set at upload time via Google Vision */
   faceBox?: FaceBox | null;
   fill?: boolean;
   width?: number;
@@ -26,7 +25,7 @@ interface FaceBlurImageProps {
   cost?: number;
 }
 
-// Fallback — used when faceBox is null (existing models before backfill)
+// Fallback box — used when faceBox is null
 const DEFAULT_BOX: FaceBox = { x: 28, y: 3, w: 44, h: 28 };
 
 export function FaceBlurImage({
@@ -44,7 +43,6 @@ export function FaceBlurImage({
 }: FaceBlurImageProps) {
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
-  // Expiry countdown
   useEffect(() => {
     if (!expiresAt || blurred) return;
     function calc() {
@@ -59,10 +57,8 @@ export function FaceBlurImage({
     return () => clearInterval(id);
   }, [expiresAt, blurred]);
 
-  // Use stored box if available, otherwise fall back to default
   const box = faceBox ?? DEFAULT_BOX;
 
-  // Ellipse clip-path from box percentages
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
   const rx = box.w / 2;
@@ -75,6 +71,7 @@ export function FaceBlurImage({
 
   return (
     <div className={wrapperCls}>
+      {/* Sharp base image */}
       <Image
         src={src}
         alt={alt}
@@ -84,17 +81,37 @@ export function FaceBlurImage({
         priority={priority}
       />
 
-      {/* CSS blur — no canvas, no ML, works on ALL browsers including iOS Safari 9+ */}
+      {/*
+        Blurred face overlay — second img copy with CSS filter:blur()
+        clipped to an ellipse over the face.
+
+        WHY NOT backdrop-filter:
+        - backdrop-filter + clip-path breaks inside overflow:hidden on Android Chrome
+        - backdrop-filter creates a GPU compositing layer per card → slow on mobile
+
+        WHY THIS WORKS:
+        - filter:blur() on a regular img element works on ALL browsers
+        - No compositing layer, no GPU overhead
+        - scale(1.05) prevents the blur from fading out at ellipse edges
+      */}
       {blurred && (
         <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            clipPath,
-            WebkitClipPath:      clipPath,
-            backdropFilter:      "blur(24px) brightness(1.05)",
-            WebkitBackdropFilter:"blur(24px) brightness(1.05)",
-          }}
-        />
+          aria-hidden
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+          style={{ clipPath, WebkitClipPath: clipPath }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover object-top"
+            style={{
+              filter: "blur(18px)",
+              transform: "scale(1.05)",
+              transformOrigin: "center",
+            }}
+          />
+        </div>
       )}
 
       {/* Expiry badge */}
