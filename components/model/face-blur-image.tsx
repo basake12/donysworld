@@ -59,6 +59,7 @@ export function FaceBlurImage({
 
   const box = faceBox ?? DEFAULT_BOX;
 
+  // Ellipse clip-path — rx/ry as % of element width/height
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
   const rx = box.w / 2;
@@ -82,36 +83,31 @@ export function FaceBlurImage({
       />
 
       {/*
-        Blurred face overlay — second img copy with CSS filter:blur()
-        clipped to an ellipse over the face.
+        Blurred face overlay.
 
-        WHY NOT backdrop-filter:
-        - backdrop-filter + clip-path breaks inside overflow:hidden on Android Chrome
-        - backdrop-filter creates a GPU compositing layer per card → slow on mobile
+        clip-path + filter:blur applied DIRECTLY on the <img> — NOT on a wrapper div.
+        Applying clip-path to a parent wrapper that also has overflow:hidden
+        causes Chrome on Android to skip the clip-path and show the full blurred image.
+        Applying both properties directly to the element avoids that bug entirely.
 
-        WHY THIS WORKS:
-        - filter:blur() on a regular img element works on ALL browsers
-        - No compositing layer, no GPU overhead
-        - scale(1.05) prevents the blur from fading out at ellipse edges
+        The blurred img sits over the sharp one, clipped to an ellipse over the face.
+        scale(1.05) prevents the gaussian blur from fading at the ellipse boundary.
       */}
       {blurred && (
-        <div
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
           aria-hidden
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-          style={{ clipPath, WebkitClipPath: clipPath }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover object-top"
-            style={{
-              filter: "blur(18px)",
-              transform: "scale(1.05)",
-              transformOrigin: "center",
-            }}
-          />
-        </div>
+          className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
+          style={{
+            clipPath,
+            WebkitClipPath: clipPath,
+            filter:          "blur(20px)",
+            transform:       "scale(1.05)",
+            transformOrigin: "center",
+          }}
+        />
       )}
 
       {/* Expiry badge */}
