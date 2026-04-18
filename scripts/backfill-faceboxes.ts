@@ -12,7 +12,7 @@
  */
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { detectFaceFromUrl } from "../lib/facebox";
 
 const prisma = new PrismaClient();
@@ -29,7 +29,7 @@ async function main() {
 
   // ── 1. Profile pictures ──────────────────────────────────────────────────
   const profiles = await prisma.modelProfile.findMany({
-    where: { faceBox: null },
+    where: { faceBox: { equals: Prisma.DbNull } },
     select: { id: true, profilePictureUrl: true },
   });
 
@@ -60,7 +60,7 @@ async function main() {
 
   // ── 2. Gallery images ────────────────────────────────────────────────────
   const gallery = await prisma.modelGallery.findMany({
-    where: { faceBox: null },
+    where: { faceBox: { equals: Prisma.DbNull } },
     select: { id: true, imageUrl: true },
   });
 
