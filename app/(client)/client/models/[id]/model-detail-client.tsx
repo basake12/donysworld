@@ -383,10 +383,10 @@ export function ModelDetailClient({
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
-                        <p className="font-black text-gold text-base leading-none">
+                        <p className="font-black text-gold text-sm leading-none">
                           {charge.maxCoins.toLocaleString()} DC
                         </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                        <p className="text-[9px] text-muted-foreground mt-0.5">
                           min {charge.minCoins.toLocaleString()}
                         </p>
                       </div>
