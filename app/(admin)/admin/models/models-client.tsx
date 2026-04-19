@@ -193,6 +193,7 @@ function AdminEditModal({
   const StatusIcon = config.icon;
 
   async function save() {
+    if (!model) return;
     if (Object.keys(form).length === 0) { onClose(); return; }
     if (form.newPassword !== undefined && form.newPassword.length > 0 && form.newPassword.length < 8) {
       toast({ title: "Password must be at least 8 characters", variant: "destructive" }); return;
@@ -220,6 +221,7 @@ function AdminEditModal({
 
   async function deleteGallery(galleryId: string) {
     setDeleting(galleryId);
+    if (!model) return;
     try {
       const res  = await fetch(`/api/admin/models/${model.id}/edit?galleryId=${galleryId}`, { method: "DELETE" });
       const data = await res.json();
@@ -354,13 +356,13 @@ function AdminEditModal({
               </div>
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" id="allowFaceReveal" defaultChecked={model.allowFaceReveal} title="Allow Face Reveal"
-                    onChange={(e) => set("allowFaceReveal", e.target.checked)} className="rounded" />
+                  <input type="checkbox" id="allowFaceReveal" defaultChecked={model.allowFaceReveal}
+                    onChange={(e) => set("allowFaceReveal", e.target.checked)} className="rounded" title="Allow Face Reveal" />
                   <Label htmlFor="allowFaceReveal" className="text-xs cursor-pointer">Allow Face Reveal</Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" id="isFaceBlurred" defaultChecked={model.isFaceBlurred} title="Face Is Blurred"
-                    onChange={(e) => set("isFaceBlurred", e.target.checked)} className="rounded" />
+                  <input type="checkbox" id="isFaceBlurred" defaultChecked={model.isFaceBlurred}
+                    onChange={(e) => set("isFaceBlurred", e.target.checked)} className="rounded" title="Face Is Blurred" />
                   <Label htmlFor="isFaceBlurred" className="text-xs cursor-pointer">Face Is Blurred</Label>
                 </div>
               </div>
