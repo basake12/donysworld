@@ -14,6 +14,7 @@ export default async function AdminModelsPage() {
         select: {
           id: true,
           fullName: true,
+          nickname: true,
           email: true,
           whatsappNumber: true,
           gender: true,
@@ -34,6 +35,14 @@ export default async function AdminModelsPage() {
           minCoins: true,
           maxCoins: true,
         },
+      },
+      gallery: {
+        select: {
+          id: true,
+          imageUrl: true,
+          order: true,
+        },
+        orderBy: { order: "asc" },
       },
       _count: {
         select: { faceReveals: true },

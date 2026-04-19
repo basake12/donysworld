@@ -25,7 +25,10 @@ interface ModelCharge {
 }
 
 interface GalleryItem {
-  id: string; imageUrl: string; order: number;
+  id: string;
+  imageUrl: string;
+  originalImageUrl?: string | null;
+  order: number;
 }
 
 interface Model {
@@ -35,7 +38,9 @@ interface Model {
   modelProfile: {
     id: string; age: number; height: string; city: string; state: string;
     bodyType: string; complexion: string; about: string;
-    profilePictureUrl: string; allowFaceReveal: boolean; isFaceBlurred: boolean;
+    profilePictureUrl: string;
+    originalPictureUrl?: string | null;
+    allowFaceReveal: boolean; isFaceBlurred: boolean;
     charges: ModelCharge[]; gallery: GalleryItem[];
   };
 }
@@ -51,17 +56,17 @@ interface ModelsClientProps {
 export function ModelsClient({
   models, walletBalance, clientProfileId, revealMap, states,
 }: ModelsClientProps) {
-  const router = useRouter();
+  const router    = useRouter();
   const { toast } = useToast();
 
-  const [search, setSearch]               = useState("");
-  const [stateFilter, setStateFilter]     = useState("all");
-  const [cityFilter, setCityFilter]       = useState("all");
-  const [bodyTypeFilter, setBodyTypeFilter] = useState("all");
-  const [showFilters, setShowFilters]     = useState(false);
-  const [locating, setLocating]           = useState(false);
-  const [locationLabel, setLocationLabel] = useState<string | null>(null);
-  const [localRevealMap, setLocalRevealMap] = useState<Record<string, string>>(revealMap);
+  const [search,          setSearch]          = useState("");
+  const [stateFilter,     setStateFilter]     = useState("all");
+  const [cityFilter,      setCityFilter]      = useState("all");
+  const [bodyTypeFilter,  setBodyTypeFilter]  = useState("all");
+  const [showFilters,     setShowFilters]     = useState(false);
+  const [locating,        setLocating]        = useState(false);
+  const [locationLabel,   setLocationLabel]   = useState<string | null>(null);
+  const [localRevealMap,  setLocalRevealMap]  = useState<Record<string, string>>(revealMap);
 
   const [offerModal, setOfferModal] = useState<{
     open: boolean;
@@ -221,7 +226,6 @@ export function ModelsClient({
             </Button>
           </div>
 
-          {/* Filter panel */}
           {showFilters && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl border border-border bg-card p-4">
               <div className="space-y-1.5">
@@ -274,7 +278,6 @@ export function ModelsClient({
           )}
         </div>
 
-        {/* ── RESULTS COUNT ─────────────────── */}
         {(search || activeFilters > 0) && (
           <p className="text-xs text-muted-foreground">
             <span className="text-gold font-bold">{filtered.length}</span> of {models.length} models
@@ -296,36 +299,31 @@ export function ModelsClient({
           />
         ) : (
           <div className="space-y-6">
-
-            {/* ── TOP RATED SECTION ─────────── */}
-            {filtered.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-gold fill-gold" />
-                  <h2 className="text-sm font-black text-foreground">
-                    {locationLabel ? `Models in ${locationLabel}` : "All Models"}
-                  </h2>
-                  <Badge variant="outline" className="text-[10px] border-gold/20 text-gold px-2 py-0 rounded-full">
-                    {filtered.length}
-                  </Badge>
-                </div>
-
-                {/* 2-col mobile · 3-col sm · 4-col lg */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {filtered.map((model) => (
-                    <ModelCard
-                      key={model.id}
-                      model={model as any}
-                      revealInfo={{
-                        revealed: !!localRevealMap[model.modelProfile?.id ?? ""],
-                        expiresAt: localRevealMap[model.modelProfile?.id ?? ""] ?? null,
-                      }}
-                      onMakeOffer={handleMakeOffer}
-                    />
-                  ))}
-                </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-gold fill-gold" />
+                <h2 className="text-sm font-black text-foreground">
+                  {locationLabel ? `Models in ${locationLabel}` : "All Models"}
+                </h2>
+                <Badge variant="outline" className="text-[10px] border-gold/20 text-gold px-2 py-0 rounded-full">
+                  {filtered.length}
+                </Badge>
               </div>
-            )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filtered.map((model) => (
+                  <ModelCard
+                    key={model.id}
+                    model={model as any}
+                    revealInfo={{
+                      revealed:  !!localRevealMap[model.modelProfile?.id ?? ""],
+                      expiresAt: localRevealMap[model.modelProfile?.id ?? ""] ?? null,
+                    }}
+                    onMakeOffer={handleMakeOffer}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -36,15 +36,15 @@ const clientSchema = z.object({
 });
 
 const modelSchema = z.object({
-  fullName:       z.string().min(3, "At least 3 characters"),
-  nickname:       z.string().min(2, "At least 2 characters"),
-  email:          z.string().email("Enter a valid email"),
-  password:       z.string().min(8, "At least 8 characters"),
+  fullName:        z.string().min(3, "At least 3 characters"),
+  nickname:        z.string().min(2, "At least 2 characters"),
+  email:           z.string().email("Enter a valid email"),
+  password:        z.string().min(8, "At least 8 characters"),
   confirmPassword: z.string(),
-  gender:         z.enum(["MALE", "FEMALE", "OTHER"], { error: "Select your gender" }),
-  whatsappNumber: z.string().min(10, "Enter a valid number")
-                   .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
-  documentType:   z.enum(["NIN", "DRIVERS_LICENSE", "VOTERS_CARD", "INTERNATIONAL_PASSPORT"], {
+  gender:          z.enum(["MALE", "FEMALE", "OTHER"], { error: "Select your gender" }),
+  whatsappNumber:  z.string().min(10, "Enter a valid number")
+                    .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
+  documentType:    z.enum(["NIN", "DRIVERS_LICENSE", "VOTERS_CARD", "INTERNATIONAL_PASSPORT"], {
     error: "Select document type",
   }),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -130,16 +130,19 @@ export default function RegisterPage() {
   const searchParams = useSearchParams();
   const { toast }    = useToast();
 
-  const [role, setRole]                             = useState<"CLIENT" | "MODEL">(
+  const [role, setRole]           = useState<"CLIENT" | "MODEL">(
     searchParams.get("role") === "model" ? "MODEL" : "CLIENT"
   );
-  const [showPassword, setShowPassword]             = useState(false);
-  const [showConfirm, setShowConfirm]               = useState(false);
-  const [loading, setLoading]                       = useState(false);
-  const [profilePicture, setProfilePicture]         = useState<File | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm,  setShowConfirm]  = useState(false);
+  const [loading,      setLoading]      = useState(false);
+
+  // The original file selected by the user (before blur)
+  const [originalPicture, setOriginalPicture]           = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
-  const [documentFile, setDocumentFile]             = useState<File | null>(null);
-  const [success, setSuccess]                       = useState(false);
+  const [documentFile,   setDocumentFile]   = useState<File | null>(null);
+  const [success,        setSuccess]        = useState(false);
+  const [blurStatus,     setBlurStatus]     = useState<string | null>(null);
 
   const clientForm = useForm<ClientFormData>({ resolver: zodResolver(clientSchema) });
   const modelForm  = useForm<ModelFormData>({ resolver: zodResolver(modelSchema) });
@@ -151,7 +154,7 @@ export default function RegisterPage() {
       toast({ title: "File too large", description: "Profile picture must be under 5MB", variant: "destructive" });
       return;
     }
-    setProfilePicture(file);
+    setOriginalPicture(file);
     const reader = new FileReader();
     reader.onloadend = () => setProfilePicturePreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -187,7 +190,7 @@ export default function RegisterPage() {
   }
 
   async function onModelSubmit(data: ModelFormData) {
-    if (!profilePicture) {
+    if (!originalPicture) {
       toast({ title: "Profile picture required", description: "Upload a clear profile photo", variant: "destructive" });
       return;
     }
@@ -197,10 +200,24 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
+      // ── Step 1: Run client-side face detection + blur ─────────────────────
+      setBlurStatus("Detecting & blurring face...");
+
+      const { blurFace, dataUrlToFile } = await import("@/lib/face-blur-client");
+      const objectUrl = URL.createObjectURL(originalPicture);
+      const result    = await blurFace(objectUrl);
+      URL.revokeObjectURL(objectUrl);
+
+      const blurredFile = dataUrlToFile(result.dataUrl, `blurred_${originalPicture.name}`);
+
+      setBlurStatus("Uploading...");
+
+      // ── Step 2: Send both blurred and original to the server ──────────────
       const formData = new FormData();
       Object.entries(data).forEach(([k, v]) => formData.append(k, v as string));
       formData.append("role", "MODEL");
-      formData.append("profilePicture", profilePicture);
+      formData.append("profilePicture", blurredFile);   // blurred → stored as public image
+      formData.append("originalPicture", originalPicture); // original → stored for reveals
       formData.append("document", documentFile);
 
       const res  = await fetch("/api/auth/register", { method: "POST", body: formData });
@@ -211,6 +228,7 @@ export default function RegisterPage() {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
+      setBlurStatus(null);
     }
   }
 
@@ -259,7 +277,6 @@ export default function RegisterPage() {
         <div className="absolute inset-0 pointer-events-none"
           style={{ background: "radial-gradient(ellipse 100% 60% at 20% 50%, hsl(43 62% 52% / 0.06) 0%, transparent 70%)" }} />
 
-        {/* Logo */}
         <Link href="/" className="relative flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 border border-gold/30">
             <ModelIcon className="h-5 w-5 text-gold" />
@@ -267,7 +284,6 @@ export default function RegisterPage() {
           <span className="text-2xl font-black text-gold-gradient font-playfair">Dony&apos;s World</span>
         </Link>
 
-        {/* Center content */}
         <div className="relative space-y-8">
           <div className="space-y-3">
             <h2 className="text-4xl font-black text-foreground font-playfair leading-tight">
@@ -284,18 +300,17 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {/* Benefits */}
           <div className="space-y-3">
             {(role === "CLIENT" ? [
-              { icon: Shield,  text: "All models ID-verified by admin" },
-              { icon: Lock,    text: "Private & secure transactions" },
-              { icon: Coins,   text: "Coin-based — no direct transfers" },
-              { icon: Star,    text: "Find models in your exact city" },
+              { icon: Shield, text: "All models ID-verified by admin" },
+              { icon: Lock,   text: "Private & secure transactions"   },
+              { icon: Coins,  text: "Coin-based — no direct transfers" },
+              { icon: Star,   text: "Find models in your exact city"  },
             ] : [
-              { icon: Coins,   text: "Earn for every accepted offer" },
-              { icon: Shield,  text: "Your real name stays private" },
-              { icon: Star,    text: "Set your own rates and availability" },
-              { icon: Lock,    text: "Coupon-protected payments" },
+              { icon: Coins,  text: "Earn for every accepted offer"   },
+              { icon: Shield, text: "Your real name stays private"    },
+              { icon: Star,   text: "Set your own rates and availability" },
+              { icon: Lock,   text: "Coupon-protected payments"       },
             ]).map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gold/10 border border-gold/20">
@@ -326,7 +341,6 @@ export default function RegisterPage() {
             </Link>
           </div>
 
-          {/* Heading */}
           <div className="space-y-1 mb-6 text-center">
             <h1 className="text-2xl font-black text-foreground font-playfair">Create Account</h1>
             <p className="text-xs text-muted-foreground">Join Nigeria&apos;s most exclusive platform</p>
@@ -413,7 +427,6 @@ export default function RegisterPage() {
                 />
               </Field>
 
-              {/* Terms notice */}
               <div className="rounded-xl border border-border bg-secondary px-4 py-3">
                 <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
                   By creating an account you confirm you are{" "}
@@ -423,9 +436,7 @@ export default function RegisterPage() {
 
               <Button type="submit" disabled={loading}
                 className="w-full h-12 bg-gold-gradient text-black font-black hover:opacity-90 gold-glow rounded-xl">
-                {loading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : "Create Client Account"}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Client Account"}
               </Button>
             </form>
           )}
@@ -440,11 +451,10 @@ export default function RegisterPage() {
                 <label htmlFor="profilePic" className="block cursor-pointer">
                   <div className={cn(
                     "relative flex items-center gap-3 rounded-2xl border-2 border-dashed p-3.5 transition-all duration-200",
-                    profilePicture
+                    originalPicture
                       ? "border-gold/50 bg-gold/5"
                       : "border-border hover:border-gold/30 hover:bg-secondary/80"
                   )}>
-                    {/* Preview / placeholder */}
                     <div className="h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-border bg-secondary flex items-center justify-center">
                       {profilePicturePreview ? (
                         <img src={profilePicturePreview} alt="Preview" className="h-full w-full object-cover" />
@@ -454,17 +464,19 @@ export default function RegisterPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-foreground truncate">
-                        {profilePicture ? profilePicture.name : "Upload your photo"}
+                        {originalPicture ? originalPicture.name : "Upload your photo"}
                       </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">JPG or PNG · Max 5MB</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        JPG or PNG · Max 5MB · Face auto-blurs on submit
+                      </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <Upload className="h-3 w-3 text-gold" />
                         <span className="text-[11px] text-gold font-bold">
-                          {profilePicture ? "Change photo" : "Browse files"}
+                          {originalPicture ? "Change photo" : "Browse files"}
                         </span>
                       </div>
                     </div>
-                    {profilePicture && (
+                    {originalPicture && (
                       <div className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30">
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       </div>
@@ -569,7 +581,14 @@ export default function RegisterPage() {
                 <p className="text-[11px] text-muted-foreground">Image or PDF · Max 10MB · Only visible to admin</p>
               </div>
 
-              {/* ── Review notice ── */}
+              {/* ── Blur status ── */}
+              {blurStatus && (
+                <div className="flex items-center gap-2 rounded-xl bg-gold/10 border border-gold/20 px-4 py-3">
+                  <Loader2 className="h-3.5 w-3.5 text-gold animate-spin shrink-0" />
+                  <p className="text-xs text-gold font-bold">{blurStatus}</p>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-gold/15 bg-gold/5 p-4 flex items-start gap-3">
                 <Shield className="h-4 w-4 text-gold shrink-0 mt-0.5" />
                 <div>
@@ -583,13 +602,12 @@ export default function RegisterPage() {
               <Button type="submit" disabled={loading}
                 className="w-full h-12 bg-gold-gradient text-black font-black hover:opacity-90 gold-glow rounded-xl">
                 {loading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{blurStatus ?? "Submitting..."}</>
                   : "Submit Application"}
               </Button>
             </form>
           )}
 
-          {/* ── Sign-in link ─────────────────── */}
           <p className="text-center text-xs text-muted-foreground mt-6">
             Already have an account?{" "}
             <Link href="/login" className="text-gold hover:text-gold-light font-bold transition-colors">

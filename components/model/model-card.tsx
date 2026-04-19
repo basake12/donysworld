@@ -14,6 +14,7 @@ interface ModelCharge {
 interface GalleryItem {
   id: string;
   imageUrl: string;
+  originalImageUrl?: string | null;
   order: number;
 }
 
@@ -37,10 +38,10 @@ interface ModelCardProps {
       complexion: string;
       about: string;
       profilePictureUrl: string;
+      originalPictureUrl?: string | null;
       allowFaceReveal: boolean;
       isFaceBlurred: boolean;
       isAvailable: boolean;
-      faceBox?: { x: number; y: number; w: number; h: number } | null;
       charges: ModelCharge[];
       gallery: GalleryItem[];
     };
@@ -64,25 +65,21 @@ const BODY_LABEL: Record<string, string> = {
 };
 
 export function ModelCard({ model, revealInfo }: ModelCardProps) {
-  const p            = model.modelProfile;
-  const isBlurred    = p.isFaceBlurred && !revealInfo.revealed;
-  const displayName  = model.nickname || "Model";
+  const p           = model.modelProfile;
+  const displayName = model.nickname || "Model";
   const galleryCount = p.gallery.length;
-  const detailHref   = `/client/models/${model.id}`;
+  const detailHref  = `/client/models/${model.id}`;
 
   return (
     <div className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer">
 
-      <Link
-        href={detailHref}
-        className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0 block"
-      >
+      <Link href={detailHref} className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0 block">
         <FaceBlurImage
           src={p.profilePictureUrl}
+          originalSrc={p.originalPictureUrl}
           alt={displayName}
           fill
-          blurred={isBlurred}
-          faceBox={p.faceBox}
+          revealed={revealInfo.revealed}
           sizes="(max-width: 640px) 50vw, 320px"
           priority
           expiresAt={revealInfo.expiresAt}
@@ -90,20 +87,16 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-        {/* ── TOP LEFT: VERIFIED + green dot only ── */}
         <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
           <div className="flex items-center gap-1 rounded-full bg-gold/90 backdrop-blur-sm px-2 py-0.5 shadow-lg">
             <ShieldCheck className="h-2.5 w-2.5 text-black" />
             <span className="text-[9px] font-black text-black tracking-wider">VERIFIED</span>
           </div>
-
-          {/* Availability — dot only, vivid green */}
           {p.isAvailable && (
             <span className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.7)] animate-pulse" />
           )}
         </div>
 
-        {/* ── BOTTOM of image: photos count OR unlocked — never conflicts with top ── */}
         {!revealInfo.expiresAt && galleryCount > 0 && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
             <div className="flex items-center gap-1 rounded-full bg-black/65 border border-white/15 backdrop-blur-sm px-2.5 py-0.5">
@@ -112,7 +105,7 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
           </div>
         )}
 
-        {!isBlurred && revealInfo.expiresAt && (
+        {revealInfo.revealed && revealInfo.expiresAt && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
             <div className="flex items-center gap-1 rounded-full bg-emerald-500/90 backdrop-blur-sm px-2.5 py-0.5">
               <Clock className="h-2.5 w-2.5 text-white" />
@@ -122,7 +115,6 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
         )}
       </Link>
 
-      {/* ── CARD BODY ── */}
       <div className="flex flex-col flex-1 p-3 gap-2">
         <div>
           <h3 className="font-black text-foreground text-sm leading-tight tracking-wide truncate">

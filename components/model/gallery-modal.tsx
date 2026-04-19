@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 interface GalleryItem {
   id: string;
   imageUrl: string;
+  originalImageUrl?: string | null;
   order: number;
-  faceBox?: { x: number; y: number; w: number; h: number } | null;
 }
 
 interface GalleryModalProps {
@@ -18,9 +18,9 @@ interface GalleryModalProps {
   onClose: () => void;
   modelName: string;
   profilePicture: string;
-  profileFaceBox?: { x: number; y: number; w: number; h: number } | null;
+  originalPicture?: string | null;
   gallery: GalleryItem[];
-  isBlurred: boolean;
+  revealed: boolean;
   allowReveal: boolean;
   onReveal: () => Promise<void>;
   revealing: boolean;
@@ -32,9 +32,9 @@ export function GalleryModal({
   onClose,
   modelName,
   profilePicture,
-  profileFaceBox,
+  originalPicture,
   gallery,
-  isBlurred,
+  revealed,
   allowReveal,
   onReveal,
   revealing,
@@ -43,8 +43,8 @@ export function GalleryModal({
   const [current, setCurrent] = useState(0);
 
   const allImages = [
-    { src: profilePicture, faceBox: profileFaceBox },
-    ...gallery.map((g) => ({ src: g.imageUrl, faceBox: g.faceBox })),
+    { src: profilePicture, originalSrc: originalPicture },
+    ...gallery.map((g) => ({ src: g.imageUrl, originalSrc: g.originalImageUrl })),
   ];
 
   function prev() {
@@ -85,25 +85,24 @@ export function GalleryModal({
           </button>
         </div>
 
-        {/* ── MAIN IMAGE — consistent 3:4 aspect ratio ── */}
+        {/* ── MAIN IMAGE ── */}
         <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: "3/4", maxHeight: "65vh" }}>
           <FaceBlurImage
             key={allImages[current].src}
             src={allImages[current].src}
+            originalSrc={allImages[current].originalSrc}
             alt={modelName}
             fill
-            blurred={isBlurred}
-            faceBox={allImages[current].faceBox}
+            revealed={revealed}
             sizes="(max-width: 640px) 100vw, 512px"
             priority
             expiresAt={expiresAt}
           />
 
-          {/* Side gradients */}
           <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-black/40 to-transparent pointer-events-none" />
           <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-black/40 to-transparent pointer-events-none" />
 
-          {/* ── Navigation arrows ── */}
+          {/* Navigation arrows */}
           {allImages.length > 1 && (
             <>
               <button
@@ -121,7 +120,7 @@ export function GalleryModal({
             </>
           )}
 
-          {/* ── Dot indicators ── */}
+          {/* Dot indicators */}
           {allImages.length > 1 && allImages.length <= 8 && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex gap-1">
               {allImages.map((_, i) => (
@@ -137,15 +136,15 @@ export function GalleryModal({
             </div>
           )}
 
-          {/* ── No reveal notice ── */}
-          {isBlurred && !allowReveal && (
+          {/* No reveal notice */}
+          {!revealed && !allowReveal && (
             <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 to-transparent pt-8 pb-4 px-4 text-center">
               <p className="text-xs text-white/50">Face reveal not enabled by this model</p>
             </div>
           )}
 
-          {/* ── Reveal CTA ── */}
-          {isBlurred && allowReveal && (
+          {/* Reveal CTA */}
+          {!revealed && allowReveal && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
               <button
                 onClick={onReveal}
@@ -164,8 +163,8 @@ export function GalleryModal({
             </div>
           )}
 
-          {/* ── Revealed status ── */}
-          {!isBlurred && expiresAt && (
+          {/* Revealed status */}
+          {revealed && expiresAt && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
               <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -176,7 +175,7 @@ export function GalleryModal({
           )}
         </div>
 
-        {/* ── THUMBNAIL STRIP — all blurred when isBlurred ── */}
+        {/* ── THUMBNAIL STRIP ── */}
         {allImages.length > 1 && (
           <div className="flex gap-2 overflow-x-auto px-4 py-3 border-t border-white/8 bg-black/80 scrollbar-hide">
             {allImages.map((img, i) => (
@@ -185,19 +184,18 @@ export function GalleryModal({
                 onClick={() => setCurrent(i)}
                 className={cn(
                   "relative shrink-0 rounded-xl overflow-hidden border-2 transition-all duration-200",
-                  "h-14 w-10",                        // fixed 5:7 ratio — consistent regardless of source
+                  "h-14 w-10",
                   i === current
                     ? "border-gold shadow-md shadow-gold/30 scale-105"
                     : "border-transparent opacity-50 hover:opacity-80 hover:border-white/20"
                 )}
               >
-                {/* ALL thumbnails use FaceBlurImage so blur applies everywhere */}
                 <FaceBlurImage
                   src={img.src}
+                  originalSrc={img.originalSrc}
                   alt={`Photo ${i + 1}`}
                   fill
-                  blurred={isBlurred}
-                  faceBox={img.faceBox}
+                  revealed={revealed}
                   sizes="40px"
                 />
                 {i === 0 && (

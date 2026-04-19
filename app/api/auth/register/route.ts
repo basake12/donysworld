@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin, BUCKETS } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
-import { Role, Gender, DocumentType, Prisma } from "@prisma/client";
-import { detectFaceFromUrl } from "@/lib/facebox";
+import { Role, Gender, DocumentType } from "@prisma/client";
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -25,7 +24,8 @@ export async function POST(req: NextRequest) {
     const isFormData = contentType.includes("multipart/form-data");
 
     let body: Record<string, string> = {};
-    let profilePictureFile: File | null = null;
+    let profilePictureFile: File | null = null;    // blurred version
+    let originalPictureFile: File | null = null;   // original — for reveals
     let documentFile: File | null = null;
 
     if (isFormData) {
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         if (typeof value === "string") body[key] = value;
       });
       profilePictureFile = formData.get("profilePicture") as File | null;
+      originalPictureFile = formData.get("originalPicture") as File | null;
       documentFile = formData.get("document") as File | null;
     } else {
       body = await req.json();
@@ -81,6 +82,8 @@ export async function POST(req: NextRequest) {
 
     // ── MODEL ─────────────────────────────────
     if (role === "MODEL") {
+      // profilePictureFile = blurred version (produced client-side)
+      // originalPictureFile = original (for reveals — optional but recommended)
       if (!profilePictureFile) return errorResponse("Profile picture is required");
       if (!documentFile) return errorResponse("Legal document is required");
       if (!documentType) return errorResponse("Document type is required");
@@ -109,12 +112,25 @@ export async function POST(req: NextRequest) {
       const docPath = `${sanitizedEmail}_${documentType}_${timestamp}.${docExtension}`;
 
       let uploadedProfilePath: string;
+      let uploadedOriginalPath: string | null = null;
       let uploadedDocPath: string;
 
       try {
         uploadedProfilePath = await uploadFile(BUCKETS.PROFILE_PICTURES, profilePicPath, profilePictureFile);
       } catch (err: any) {
         return errorResponse(`Profile picture upload failed: ${err.message}`);
+      }
+
+      // Upload original if provided
+      if (originalPictureFile && allowedImageTypes.includes(originalPictureFile.type)) {
+        try {
+          const origExt = originalPictureFile.name.split(".").pop();
+          const origPath = `original/${sanitizedEmail}_${timestamp}.${origExt}`;
+          uploadedOriginalPath = await uploadFile(BUCKETS.PROFILE_PICTURES, origPath, originalPictureFile);
+        } catch {
+          // Non-fatal — original is optional
+          console.warn("[REGISTER] Original picture upload failed, continuing without it");
+        }
       }
 
       try {
@@ -124,12 +140,13 @@ export async function POST(req: NextRequest) {
         return errorResponse(`Document upload failed: ${err.message}`);
       }
 
-      const { data: publicUrlData } = supabaseAdmin.storage
+      const { data: blurredUrlData } = supabaseAdmin.storage
         .from(BUCKETS.PROFILE_PICTURES)
         .getPublicUrl(uploadedProfilePath);
 
-      // Detect face bounding box — runs after upload, non-fatal if it fails
-      const faceBox = await detectFaceFromUrl(publicUrlData.publicUrl);
+      const originalPublicUrl = uploadedOriginalPath
+        ? supabaseAdmin.storage.from(BUCKETS.PROFILE_PICTURES).getPublicUrl(uploadedOriginalPath).data.publicUrl
+        : null;
 
       await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
@@ -149,9 +166,10 @@ export async function POST(req: NextRequest) {
             userId: user.id,
             age: 0, height: "", city: "", state: "",
             bodyType: "AVERAGE", complexion: "MEDIUM", about: "",
-            profilePictureUrl: publicUrlData.publicUrl,
-            allowFaceReveal: false, isFaceBlurred: true,
-            ...(faceBox && { faceBox: faceBox as unknown as Prisma.InputJsonValue }),
+            profilePictureUrl: blurredUrlData.publicUrl,
+            originalPictureUrl: originalPublicUrl,
+            allowFaceReveal: false,
+            isFaceBlurred: true,
           },
         });
 

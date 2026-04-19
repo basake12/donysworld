@@ -12,8 +12,19 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required: tells Next.js 16 we acknowledge the webpack/turbopack mix
   turbopack: {},
+
+  // ✅ ADD THIS — tells webpack to ignore Node-only modules in the browser bundle
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        encoding: false,
+      };
+    }
+    return config;
+  },
 
   images: {
     remotePatterns: [

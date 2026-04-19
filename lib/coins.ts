@@ -1,16 +1,16 @@
 export const COIN_TO_NAIRA = 1; // 1 DC = ₦1
 
-export const FACE_REVEAL_COST = 1000;
-export const FACE_REVEAL_MODEL_SHARE = 500;
-export const FACE_REVEAL_ADMIN_SHARE = 500;
+export const FACE_REVEAL_COST         = 1000;
+export const FACE_REVEAL_MODEL_SHARE  = 500;
+export const FACE_REVEAL_ADMIN_SHARE  = 500;
 export const FACE_REVEAL_EXPIRY_HOURS = 24;
 
 export const CONNECTION_FEE_PERCENT = 0.15; // 15% from client + 15% from model
 
 export const MEET_LIMITS = {
-  SHORT:     { label: "Short Meet",  min: 30000,  max: 50000  },
-  OVERNIGHT: { label: "Overnight",   min: 60000,  max: 100000 },
-  WEEKEND:   { label: "Weekend",     min: 150000, max: 300000 },
+  SHORT:     { label: "Short Meet", min: 20000,  max: 50000  },
+  OVERNIGHT: { label: "Overnight",  min: 40000,  max: 100000 },
+  WEEKEND:   { label: "Weekend",    min: 150000, max: 500000 },
 } as const;
 
 export function coinsToNaira(coins: number): number {
@@ -27,8 +27,8 @@ export function formatCoins(coins: number): string {
 
 export function formatNaira(naira: number): string {
   return new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
+    style:                 "currency",
+    currency:              "NGN",
     minimumFractionDigits: 0,
   }).format(naira);
 }
@@ -44,8 +44,8 @@ export function calculateConnectionFees(offerCoins: number): {
   modelReceives: number;
   clientTotal: number;
 } {
-  const clientFee = Math.floor(offerCoins * CONNECTION_FEE_PERCENT);
-  const modelFee  = Math.floor(offerCoins * CONNECTION_FEE_PERCENT);
+  const clientFee      = Math.floor(offerCoins * CONNECTION_FEE_PERCENT);
+  const modelFee       = Math.floor(offerCoins * CONNECTION_FEE_PERCENT);
   const adminTotal     = clientFee + modelFee;
   const modelReceives  = offerCoins - modelFee;
   const clientTotal    = offerCoins + clientFee;

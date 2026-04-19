@@ -182,21 +182,21 @@ model ClientProfile {
 // ─────────────────────────────────────────────
 
 model ModelProfile {
-  id                String      @id @default(cuid())
-  userId            String      @unique
-  status            ModelStatus @default(PENDING_APPROVAL)
-  age               Int
-  height            String
-  city              String
-  state             String
-  bodyType          BodyType
-  complexion        Complexion
-  about             String      @db.Text
-  allowFaceReveal   Boolean     @default(false)
-  profilePictureUrl String
-  isFaceBlurred     Boolean     @default(true)
-  isAvailable       Boolean     @default(true)
-  faceBox           Json?                          // {x,y,w,h} in % — set at upload time
+  id                 String      @id @default(cuid())
+  userId             String      @unique
+  status             ModelStatus @default(PENDING_APPROVAL)
+  age                Int
+  height             String
+  city               String
+  state              String
+  bodyType           BodyType
+  complexion         Complexion
+  about              String      @db.Text
+  allowFaceReveal    Boolean     @default(false)
+  profilePictureUrl  String      // blurred version — shown to all clients by default
+  originalPictureUrl String?     // original — only returned to clients with an active reveal
+  isFaceBlurred      Boolean     @default(true)
+  isAvailable        Boolean     @default(true)
 
   gallery     ModelGallery[]
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -213,12 +213,12 @@ model ModelProfile {
 // ─────────────────────────────────────────────
 
 model ModelGallery {
-  id             String   @id @default(cuid())
-  modelProfileId String
-  imageUrl       String
-  faceBox        Json?    // {x,y,w,h} in % — set at upload time
-  order          Int      @default(0)
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  modelProfileId   String
+  imageUrl         String   // blurred version — shown by default
+  originalImageUrl String?  // original — only returned to clients with an active reveal
+  order            Int      @default(0)
+  createdAt        DateTime @default(now())
 
   modelProfile ModelProfile @relation(fields: [modelProfileId], references: [id], onDelete: Cascade)
 
