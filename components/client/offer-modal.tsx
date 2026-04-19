@@ -179,8 +179,8 @@ export function OfferModal({
                       </div>
                       <span className="text-xs font-bold leading-tight">{cfg.label}</span>
                       <div className="flex items-center gap-0.5 mt-0.5">
-                        <Coins className="h-2.5 w-2.5 text-gold" />
-                        <span className="text-[10px] font-black text-gold">
+                        <Coins className="h-2 w-2 text-gold" />
+                        <span className="text-[9px] font-black text-gold">
                           {charge.maxCoins >= 1000
                             ? `${(charge.maxCoins / 1000).toFixed(charge.maxCoins % 1000 === 0 ? 0 : 1)}k`
                             : charge.maxCoins}
