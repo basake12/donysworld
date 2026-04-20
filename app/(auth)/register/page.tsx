@@ -27,8 +27,8 @@ const clientSchema = z.object({
   email:              z.string().email("Enter a valid email"),
   password:           z.string().min(8, "At least 8 characters"),
   confirmPassword:    z.string(),
-  gender:             z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select your gender",    required_error: "Select your gender"    }),
-  genderInterestedIn: z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select preferred gender", required_error: "Select preferred gender" }),
+  gender:             z.enum(["MALE", "FEMALE", "OTHER"], { message: "Select your gender" }),
+  genderInterestedIn: z.enum(["MALE", "FEMALE", "OTHER"], { message: "Select preferred gender" }),
   whatsappNumber:     z.string().min(10, "Enter a valid number")
                        .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -41,11 +41,11 @@ const modelSchema = z.object({
   email:           z.string().email("Enter a valid email"),
   password:        z.string().min(8, "At least 8 characters"),
   confirmPassword: z.string(),
-  gender:          z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select your gender", required_error: "Select your gender" }),
+  gender:          z.enum(["MALE", "FEMALE", "OTHER"], { message: "Select your gender" }),
   whatsappNumber:  z.string().min(10, "Enter a valid number")
                     .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
   documentType:    z.enum(["NIN", "DRIVERS_LICENSE", "VOTERS_CARD", "INTERNATIONAL_PASSPORT"], {
-    invalid_type_error: "Select document type", required_error: "Select document type",
+    message: "Select document type",
   }),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match", path: ["confirmPassword"],
