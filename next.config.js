@@ -24,12 +24,9 @@ const nextConfig = {
     minimumCacheTTL: 3600,
   },
 
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = { ...config.resolve.fallback, fs: false, encoding: false };
-    }
-    return config;
-  },
+  // Turbopack is default in Next.js 16 — the old webpack fs fallback
+  // is not needed as Turbopack handles it automatically.
+  turbopack: {},
 
   experimental: {
     serverActions: {
