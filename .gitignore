@@ -65,3 +65,4 @@ next-env.d.ts
 .vercel
 .turbo
 *.pem
+public/mediapipe/
