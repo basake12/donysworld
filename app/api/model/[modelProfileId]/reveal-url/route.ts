@@ -5,19 +5,22 @@ import cloudinary from "@/lib/cloudinary";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { profileId: string } }
+  { params }: { params: Promise<{ modelProfileId: string }> }
 ) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Next.js 15+: params is a Promise — must be awaited
+  const { modelProfileId } = await params;
+
   // Check they paid for reveal
   const reveal = await prisma.faceReveal.findUnique({
     where: {
       clientId_modelProfileId: {
         clientId: session.user.id,
-        modelProfileId: params.profileId,
+        modelProfileId,
       },
     },
   });
@@ -27,7 +30,7 @@ export async function GET(
   }
 
   const model = await prisma.modelProfile.findUnique({
-    where: { id: params.profileId },
+    where: { id: modelProfileId },
     select: { originalPictureUrl: true },
   });
 
