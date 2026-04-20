@@ -31,7 +31,7 @@ export default async function ModelsPage() {
 
   const blockedProfileIds = blockedProfiles.map((b) => b.modelProfileId);
 
-  const [models, wallet, clientProfile, activeReveals] = await Promise.all([
+  const [rawModels, wallet, clientProfile, activeReveals] = await Promise.all([
     prisma.user.findMany({
       where: {
         role: "MODEL",
@@ -49,14 +49,16 @@ export default async function ModelsPage() {
         nickname: true,
         modelProfile: {
           select: {
+            // Originals are NEVER selected — reveal-url endpoint is the
+            // single gate that reads them. This select only returns data
+            // safe to ship to any authenticated client.
             id: true, age: true, height: true, city: true, state: true,
             bodyType: true, complexion: true, about: true,
             profilePictureUrl: true,
-            originalPictureUrl: true,  // fetched here, stripped below unless revealed
             allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
             charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
             gallery: {
-              select: { id: true, imageUrl: true, originalImageUrl: true, order: true },
+              select: { id: true, imageUrl: true, order: true },
               orderBy: { order: "asc" },
             },
           },
@@ -81,35 +83,28 @@ export default async function ModelsPage() {
     }),
   ]);
 
+  // The `where` clause above guarantees modelProfile is present, but Prisma
+  // types it as nullable. Narrow to non-null at the page boundary so the
+  // client component receives a clean shape.
+  const models = rawModels
+    .filter((m): m is typeof m & { modelProfile: NonNullable<typeof m.modelProfile> } => !!m.modelProfile)
+    .map((m) => ({
+      id: m.id,
+      fullName: m.fullName,
+      nickname: m.nickname,
+      modelProfile: m.modelProfile,
+    }));
+
   const revealMap: Record<string, string> = {};
   for (const r of activeReveals) {
     revealMap[r.modelProfileId] = r.expiresAt.toISOString();
   }
 
-  // Strip originalPictureUrl / originalImageUrl unless this client has an active reveal.
-  // This ensures original URLs are never sent to non-paying clients.
-  const sanitizedModels = models.map((m) => {
-    const hasReveal = !!(m.modelProfile && revealMap[m.modelProfile.id]);
-    return {
-      ...m,
-      modelProfile: m.modelProfile
-        ? {
-            ...m.modelProfile,
-            originalPictureUrl: hasReveal ? m.modelProfile.originalPictureUrl : null,
-            gallery: m.modelProfile.gallery.map((g) => ({
-              ...g,
-              originalImageUrl: hasReveal ? g.originalImageUrl : null,
-            })),
-          }
-        : m.modelProfile,
-    };
-  });
-
   const states = NIGERIA_STATES.map((s) => s.state);
 
   return (
     <ModelsClient
-      models={sanitizedModels as any}
+      models={models}
       walletBalance={wallet?.balance ?? 0}
       clientProfileId={clientProfile?.id ?? ""}
       revealMap={revealMap}

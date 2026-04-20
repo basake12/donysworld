@@ -27,8 +27,8 @@ const clientSchema = z.object({
   email:              z.string().email("Enter a valid email"),
   password:           z.string().min(8, "At least 8 characters"),
   confirmPassword:    z.string(),
-  gender:             z.enum(["MALE", "FEMALE", "OTHER"], { error: "Select your gender" }),
-  genderInterestedIn: z.enum(["MALE", "FEMALE", "OTHER"], { error: "Select preferred gender" }),
+  gender:             z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select your gender",    required_error: "Select your gender"    }),
+  genderInterestedIn: z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select preferred gender", required_error: "Select preferred gender" }),
   whatsappNumber:     z.string().min(10, "Enter a valid number")
                        .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -41,11 +41,11 @@ const modelSchema = z.object({
   email:           z.string().email("Enter a valid email"),
   password:        z.string().min(8, "At least 8 characters"),
   confirmPassword: z.string(),
-  gender:          z.enum(["MALE", "FEMALE", "OTHER"], { error: "Select your gender" }),
+  gender:          z.enum(["MALE", "FEMALE", "OTHER"], { invalid_type_error: "Select your gender", required_error: "Select your gender" }),
   whatsappNumber:  z.string().min(10, "Enter a valid number")
                     .regex(/^\+?[0-9\s\-()]+$/, "Invalid phone number"),
   documentType:    z.enum(["NIN", "DRIVERS_LICENSE", "VOTERS_CARD", "INTERNATIONAL_PASSPORT"], {
-    error: "Select document type",
+    invalid_type_error: "Select document type", required_error: "Select document type",
   }),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match", path: ["confirmPassword"],
@@ -150,8 +150,8 @@ export default function RegisterPage() {
   function handleProfilePicture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Profile picture must be under 5MB", variant: "destructive" });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Profile picture must be under 10MB", variant: "destructive" });
       return;
     }
     setOriginalPicture(file);
@@ -198,34 +198,35 @@ export default function RegisterPage() {
       toast({ title: "Document required", description: "Upload your legal document", variant: "destructive" });
       return;
     }
+    if (originalPicture.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Profile picture must be under 10MB", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      // ── Step 1: Run client-side face detection + blur ─────────────────────
+      // Step 1: Blur the face client-side with MediaPipe.
       setBlurStatus("Detecting & blurring face...");
+      const { blurFace } = await import("@/lib/face-blur-client");
+      const blurResult = await blurFace(originalPicture, {
+        filename: `blurred_${originalPicture.name.replace(/\.[^.]+$/, "")}.jpg`,
+      });
 
-      const { blurFace, dataUrlToFile } = await import("@/lib/face-blur-client");
-      const objectUrl = URL.createObjectURL(originalPicture);
-      const result    = await blurFace(objectUrl);
-      URL.revokeObjectURL(objectUrl);
-
-      const blurredFile = dataUrlToFile(result.dataUrl, `blurred_${originalPicture.name}`);
-
+      // Step 2: Send both files to the server.
       setBlurStatus("Uploading...");
-
-      // ── Step 2: Send both blurred and original to the server ──────────────
       const formData = new FormData();
       Object.entries(data).forEach(([k, v]) => formData.append(k, v as string));
       formData.append("role", "MODEL");
-      formData.append("profilePicture", blurredFile);   // blurred → stored as public image
-      formData.append("originalPicture", originalPicture); // original → stored for reveals
+      formData.append("profilePicture", blurResult.blurredFile);
+      formData.append("originalPicture", originalPicture);
       formData.append("document", documentFile);
 
       const res  = await fetch("/api/auth/register", { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Registration failed");
       setSuccess(true);
-    } catch (err: any) {
-      toast({ title: "Registration failed", description: err.message, variant: "destructive" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      toast({ title: "Registration failed", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
       setBlurStatus(null);
@@ -383,7 +384,7 @@ export default function RegisterPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Your Gender" error={clientForm.formState.errors.gender?.message}>
-                  <Select onValueChange={(v) => clientForm.setValue("gender", v as any)}>
+                  <Select onValueChange={(v) => { clientForm.setValue("gender", v as any); clientForm.trigger("gender"); }}>
                     <SelectTrigger className="h-11 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -396,7 +397,7 @@ export default function RegisterPage() {
                 </Field>
 
                 <Field label="Interested In" error={clientForm.formState.errors.genderInterestedIn?.message}>
-                  <Select onValueChange={(v) => clientForm.setValue("genderInterestedIn", v as any)}>
+                  <Select onValueChange={(v) => { clientForm.setValue("genderInterestedIn", v as any); clientForm.trigger("genderInterestedIn"); }}>
                     <SelectTrigger className="h-11 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -467,7 +468,7 @@ export default function RegisterPage() {
                         {originalPicture ? originalPicture.name : "Upload your photo"}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        JPG or PNG · Max 5MB · Face auto-blurs on submit
+                        JPG, PNG or WebP · Max 10MB · Face auto-blurs on submit
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <Upload className="h-3 w-3 text-gold" />
@@ -511,7 +512,7 @@ export default function RegisterPage() {
               </Field>
 
               <Field label="Your Gender" error={modelForm.formState.errors.gender?.message}>
-                <Select onValueChange={(v) => modelForm.setValue("gender", v as any)}>
+                <Select onValueChange={(v) => { modelForm.setValue("gender", v as any); modelForm.trigger("gender"); }}>
                   <SelectTrigger className="h-11 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                     <SelectValue placeholder="Select your gender" />
                   </SelectTrigger>
@@ -545,7 +546,7 @@ export default function RegisterPage() {
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-foreground">Legal Document</Label>
 
-                <Select onValueChange={(v) => modelForm.setValue("documentType", v as any)}>
+                <Select onValueChange={(v) => { modelForm.setValue("documentType", v as any); modelForm.trigger("documentType"); }}>
                   <SelectTrigger className="h-11 bg-secondary border-border focus:border-gold rounded-xl text-sm">
                     <SelectValue placeholder="Select document type" />
                   </SelectTrigger>

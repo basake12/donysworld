@@ -20,17 +20,21 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
         role: "MODEL",
         modelProfile: { status: "ACTIVE", isAvailable: true },
       },
-      include: {
+      select: {
+        id: true, fullName: true, nickname: true,
         modelProfile: {
-          include: {
-            // Always fetch both blurred and original — we decide server-side which to pass
+          select: {
+            // Originals are NEVER selected — the reveal-url endpoint is the
+            // single gate that returns them to paying clients.
+            id: true, age: true, height: true, city: true, state: true,
+            bodyType: true, complexion: true, about: true,
+            profilePictureUrl: true,
+            allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
+            charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
             gallery: {
-              select: {
-                id: true, imageUrl: true, originalImageUrl: true, order: true,
-              },
+              select: { id: true, imageUrl: true, order: true },
               orderBy: { order: "asc" },
             },
-            charges: true,
           },
         },
       },
@@ -41,7 +45,7 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
 
   if (!model?.modelProfile) notFound();
 
-  // ── Face reveal status ───────────────────────
+  // ── Face reveal status for THIS model ───────────
   let revealInfo: { revealed: boolean; expiresAt: string | null } = {
     revealed: false, expiresAt: null,
   };
@@ -58,20 +62,7 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
     }
   }
 
-  // Only expose original URLs to clients with an active reveal.
-  // Non-paying clients only ever receive the pre-blurred imageUrl.
-  const originalPictureUrl = revealInfo.revealed
-    ? (model.modelProfile.originalPictureUrl ?? null)
-    : null;
-
-  const gallery = model.modelProfile.gallery.map((g) => ({
-    id:              g.id,
-    imageUrl:        g.imageUrl,
-    originalImageUrl: revealInfo.revealed ? (g.originalImageUrl ?? null) : null,
-    order:           g.order,
-  }));
-
-  // ── Other models in same state ───────────────
+  // ── Other models in same state ───────────────────
   const otherModels = await prisma.user.findMany({
     where: {
       role: "MODEL",
@@ -83,16 +74,17 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
       },
     },
     take: 6,
-    include: {
+    select: {
+      id: true, fullName: true, nickname: true,
       modelProfile: {
         select: {
           id: true, age: true, height: true, city: true, state: true,
           bodyType: true, complexion: true, about: true,
-          profilePictureUrl: true, originalPictureUrl: true,
+          profilePictureUrl: true,
           allowFaceReveal: true, isFaceBlurred: true, isAvailable: true,
           charges: { select: { meetType: true, minCoins: true, maxCoins: true } },
           gallery: {
-            select: { id: true, imageUrl: true, originalImageUrl: true, order: true },
+            select: { id: true, imageUrl: true, order: true },
             take: 1,
           },
         },
@@ -101,7 +93,7 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
     orderBy: { createdAt: "desc" },
   });
 
-  // Reveal map for other models
+  // ── Reveal map for the "more models" cards ──────
   let otherRevealMap: Record<string, string> = {};
   if (clientProfile && otherModels.length > 0) {
     const otherProfileIds = otherModels
@@ -120,38 +112,25 @@ export default async function ModelDetailPage({ params: paramsPromise }: PagePro
     });
   }
 
-  // Strip original URLs from other models unless the client has revealed them
-  const sanitizedOtherModels = otherModels.map((m) => {
-    const hasReveal = !!otherRevealMap[m.modelProfile?.id ?? ""];
-    return {
-      ...m,
-      modelProfile: m.modelProfile
-        ? {
-            ...m.modelProfile,
-            originalPictureUrl: hasReveal ? m.modelProfile.originalPictureUrl : null,
-            gallery: m.modelProfile.gallery.map((g) => ({
-              ...g,
-              originalImageUrl: hasReveal ? g.originalImageUrl : null,
-            })),
-          }
-        : m.modelProfile,
-    };
-  });
-
   return (
     <ModelDetailClient
       model={{
-        ...model,
-        modelProfile: {
-          ...model.modelProfile,
-          originalPictureUrl,
-          gallery,
-        },
-      } as any}
+        id: model.id,
+        fullName: model.fullName,
+        nickname: model.nickname,
+        modelProfile: model.modelProfile,
+      }}
       walletBalance={wallet?.balance ?? 0}
       clientProfileId={clientProfile?.id ?? ""}
       revealInfo={revealInfo}
-      otherModels={sanitizedOtherModels as any}
+      otherModels={otherModels
+        .filter((m): m is typeof m & { modelProfile: NonNullable<typeof m.modelProfile> } => !!m.modelProfile)
+        .map((m) => ({
+          id: m.id,
+          fullName: m.fullName,
+          nickname: m.nickname,
+          modelProfile: m.modelProfile,
+        }))}
       otherRevealMap={otherRevealMap}
     />
   );

@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { OfferModal } from "@/components/client/offer-modal";
 import { FaceBlurImage } from "@/components/model/face-blur-image";
 import { ModelCard } from "@/components/model/model-card";
+import { useRevealedImages } from "@/hooks/use-revealed-images";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  MapPin, Ruler, Coins, Eye, Clock, ShieldCheck,
+  MapPin, Ruler, Eye, Clock, ShieldCheck,
   ChevronLeft, User, Sparkles, Lock, X, CheckCircle2,
 } from "lucide-react";
-import { formatCoins, FACE_REVEAL_COST, coinsToNairaFormatted } from "@/lib/coins";
+import { FACE_REVEAL_COST, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
 
 interface ModelCharge {
@@ -24,7 +25,6 @@ interface ModelCharge {
 interface GalleryItem {
   id: string;
   imageUrl: string;
-  originalImageUrl?: string | null;
   order: number;
 }
 
@@ -36,7 +36,7 @@ interface ModelDetailClientProps {
     modelProfile: {
       id: string; age: number; height: string; city: string; state: string;
       bodyType: string; complexion: string; about: string;
-      profilePictureUrl: string; originalPictureUrl?: string | null;
+      profilePictureUrl: string;
       allowFaceReveal: boolean; isFaceBlurred: boolean; isAvailable: boolean;
       charges: ModelCharge[]; gallery: GalleryItem[];
     };
@@ -49,7 +49,7 @@ interface ModelDetailClientProps {
     modelProfile: {
       id: string; age: number; height: string; city: string; state: string;
       bodyType: string; complexion: string; about: string;
-      profilePictureUrl: string; originalPictureUrl?: string | null;
+      profilePictureUrl: string;
       allowFaceReveal: boolean; isFaceBlurred: boolean; isAvailable: boolean;
       charges: ModelCharge[]; gallery: GalleryItem[];
     };
@@ -67,11 +67,18 @@ const BODY_COLOR: Record<string, string> = {
 };
 const COMPLEXION_LABEL: Record<string, string> = { FAIR: "Fair", LIGHT: "Light", MEDIUM: "Medium", OLIVE: "Olive", TAN: "Tan", DARK: "Dark" };
 
+// ── Image identity for reveal-url lookup ──────────────────────────────────────
+interface ImageEntry {
+  src: string;
+  /** null → profile picture. string → gallery item id. */
+  galleryId: string | null;
+}
+
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 
 interface LightboxProps {
   src: string;
-  originalSrc?: string | null;
+  revealedSrc: string | null;
   revealed: boolean;
   onClose: () => void;
   expiresAt: string | null;
@@ -80,7 +87,7 @@ interface LightboxProps {
   revealing: boolean;
 }
 
-function Lightbox({ src, originalSrc, revealed, onClose, expiresAt, allowReveal, onReveal, revealing }: LightboxProps) {
+function Lightbox({ src, revealedSrc, revealed, onClose, expiresAt, allowReveal, onReveal, revealing }: LightboxProps) {
   return (
     <div
       className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/98 backdrop-blur-md animate-fade-in"
@@ -96,8 +103,13 @@ function Lightbox({ src, originalSrc, revealed, onClose, expiresAt, allowReveal,
         onClick={(e) => e.stopPropagation()}
       >
         <FaceBlurImage
-          src={src} originalSrc={originalSrc} alt="Gallery photo"
-          fill revealed={revealed} sizes="480px" expiresAt={expiresAt}
+          src={src}
+          revealedSrc={revealedSrc}
+          alt="Gallery photo"
+          fill
+          revealed={revealed}
+          sizes="480px"
+          expiresAt={expiresAt}
         />
         {!revealed && allowReveal && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
@@ -131,7 +143,7 @@ function Lightbox({ src, originalSrc, revealed, onClose, expiresAt, allowReveal,
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export function ModelDetailClient({
-  model, walletBalance, clientProfileId, revealInfo: initialRevealInfo,
+  model, walletBalance, revealInfo: initialRevealInfo,
   otherModels, otherRevealMap,
 }: ModelDetailClientProps) {
   const router      = useRouter();
@@ -139,20 +151,34 @@ export function ModelDetailClient({
   const p           = model.modelProfile;
   const displayName = model.nickname || "Model";
 
-  const [revealInfo,   setRevealInfo]   = useState(initialRevealInfo);
-  const [revealing,    setRevealing]    = useState(false);
-  const [lightbox,     setLightbox]     = useState<{ src: string; originalSrc?: string | null } | null>(null);
-  const [offerOpen,    setOfferOpen]    = useState(false);
+  const [revealInfo,    setRevealInfo]    = useState(initialRevealInfo);
+  const [revealing,     setRevealing]     = useState(false);
+  const [lightbox,      setLightbox]      = useState<ImageEntry | null>(null);
+  const [offerOpen,     setOfferOpen]     = useState(false);
   const [offerMeetType, setOfferMeetType] = useState<"SHORT" | "OVERNIGHT" | "WEEKEND" | null>(null);
 
-  const allImages = [
-    { src: p.profilePictureUrl, originalSrc: p.originalPictureUrl },
-    ...p.gallery.map((g) => ({ src: g.imageUrl, originalSrc: g.originalImageUrl })),
+  // One hook for the entire detail page — covers hero strip + lightbox.
+  // The "more models" cards below each have their own hook internally.
+  const revealedImages = useRevealedImages(p.id, revealInfo.revealed);
+
+  const allImages: ImageEntry[] = [
+    { src: p.profilePictureUrl, galleryId: null },
+    ...p.gallery.map((g) => ({ src: g.imageUrl, galleryId: g.id })),
   ];
 
-  // For each image, resolve which URL to actually display
-  function displaySrc(img: { src: string; originalSrc?: string | null }) {
-    return revealInfo.revealed && img.originalSrc ? img.originalSrc : img.src;
+  function revealedSrcFor(entry: ImageEntry): string | null {
+    if (entry.galleryId === null) return revealedImages.profilePicture;
+    return revealedImages.gallery[entry.galleryId] ?? null;
+  }
+
+  /**
+   * The raw <img> strip needs a plain string, not the dual-URL contract.
+   * Resolve to whichever the viewer should see right now.
+   */
+  function displaySrc(entry: ImageEntry): string {
+    if (!revealInfo.revealed) return entry.src;
+    const rev = revealedSrcFor(entry);
+    return rev ?? entry.src;
   }
 
   function openOffer(meetType: "SHORT" | "OVERNIGHT" | "WEEKEND") {
@@ -172,8 +198,9 @@ export function ModelDetailClient({
       setRevealInfo({ revealed: true, expiresAt: data.expiresAt });
       toast({ title: "Face revealed! 👁️", description: "Access valid for 24 hours." });
       router.refresh();
-    } catch (err: any) {
-      toast({ title: "Reveal failed", description: err.message, variant: "destructive" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Reveal failed";
+      toast({ title: "Reveal failed", description: msg, variant: "destructive" });
     } finally {
       setRevealing(false);
     }
@@ -197,11 +224,14 @@ export function ModelDetailClient({
     <>
       {lightbox && (
         <Lightbox
-          src={lightbox.src} originalSrc={lightbox.originalSrc}
+          src={lightbox.src}
+          revealedSrc={revealedSrcFor(lightbox)}
           onClose={() => setLightbox(null)}
-          revealed={revealInfo.revealed} expiresAt={revealInfo.expiresAt}
+          revealed={revealInfo.revealed}
+          expiresAt={revealInfo.expiresAt}
           allowReveal={p.allowFaceReveal && p.isFaceBlurred}
-          onReveal={handleReveal} revealing={revealing}
+          onReveal={handleReveal}
+          revealing={revealing}
         />
       )}
 
@@ -221,11 +251,6 @@ export function ModelDetailClient({
 
         {/* ── FULL-IMAGE HORIZONTAL GALLERY STRIP ──────────────────────── */}
         <div className="relative bg-muted/30">
-          {/*
-            The strip shows all images side-by-side at full natural height.
-            Images are NOT cropped — the entire photo is visible.
-            Horizontally scrollable (touch swipe on mobile, scroll on desktop).
-          */}
           <div
             className="flex overflow-x-auto gap-2 px-3 py-3 scrollbar-hide"
             style={{ height: "72vw", maxHeight: 520, minHeight: 280 }}
@@ -237,10 +262,11 @@ export function ModelDetailClient({
                 onClick={() => setLightbox(img)}
               >
                 {/*
-                  Use a plain <img> here so images render at their natural
-                  aspect ratio within the fixed-height strip — no forced
-                  crop, no letterboxing. The width adjusts automatically.
-                  The blur is already baked into img.src server-side.
+                  Plain <img> here so photos render at their natural aspect
+                  ratio inside the fixed-height strip — no forced crop, no
+                  letterboxing. Blur is already baked into img.src server-side;
+                  originals, when revealed, come from the signed-URL hook via
+                  displaySrc().
                 */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -250,7 +276,6 @@ export function ModelDetailClient({
                   draggable={false}
                 />
 
-                {/* Reveal overlay badge on blurred photos */}
                 {!revealInfo.revealed && p.isFaceBlurred && idx === 0 && p.allowFaceReveal && (
                   <div className="absolute inset-0 flex flex-col items-center justify-end pb-3 pointer-events-none">
                     <div className="flex items-center gap-1.5 rounded-xl bg-black/75 border border-gold/30 px-3 py-1.5 backdrop-blur-sm">
@@ -260,7 +285,6 @@ export function ModelDetailClient({
                   </div>
                 )}
 
-                {/* Unlocked badge */}
                 {revealInfo.revealed && revealInfo.expiresAt && idx === 0 && (
                   <div className="absolute top-2 left-2">
                     <div className="flex items-center gap-1 rounded-xl bg-emerald-500/90 px-2 py-0.5">
@@ -273,7 +297,6 @@ export function ModelDetailClient({
             ))}
           </div>
 
-          {/* Scroll hint on mobile if multiple images */}
           {allImages.length > 1 && (
             <p className="text-center text-[10px] text-muted-foreground pb-1">
               {allImages.length} photos · scroll to see all
@@ -284,7 +307,6 @@ export function ModelDetailClient({
         {/* ── BODY ─────────────────────────────────────────────────────── */}
         <div className="px-4 max-w-2xl mx-auto space-y-5 pt-5">
 
-          {/* Name + location */}
           <div>
             <h1 className="text-2xl font-black text-foreground font-playfair">{displayName}</h1>
             <div className="flex items-center gap-1.5 mt-1">
@@ -293,7 +315,6 @@ export function ModelDetailClient({
             </div>
           </div>
 
-          {/* Attribute pills */}
           <div className="flex flex-wrap gap-2">
             <span className="flex items-center gap-1 rounded-full bg-card border border-border px-2.5 py-1 text-xs font-semibold text-foreground">
               <User className="h-3 w-3 text-gold" />{p.age} yrs
@@ -313,7 +334,6 @@ export function ModelDetailClient({
             )}
           </div>
 
-          {/* About */}
           {p.about && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
               <div className="h-0.5 bg-gold-gradient" />
@@ -326,7 +346,6 @@ export function ModelDetailClient({
             </div>
           )}
 
-          {/* Face reveal card */}
           {p.isFaceBlurred && p.allowFaceReveal && (
             !revealInfo.revealed ? (
               <button onClick={handleReveal} disabled={revealing} className="w-full disabled:opacity-60 disabled:cursor-not-allowed">
@@ -361,7 +380,6 @@ export function ModelDetailClient({
             )
           )}
 
-          {/* ── EXPERIENCES ─────────────────────────────────────────────── */}
           {p.charges.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-base font-black text-foreground">Experiences</h2>
@@ -410,7 +428,6 @@ export function ModelDetailClient({
             </div>
           )}
 
-          {/* More models */}
           {otherModels.length > 0 && (
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
@@ -423,7 +440,7 @@ export function ModelDetailClient({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {otherModels.map((m) => (
-                  <ModelCard key={m.id} model={m as any}
+                  <ModelCard key={m.id} model={m}
                     revealInfo={{
                       revealed:  !!otherRevealMap[m.modelProfile?.id ?? ""],
                       expiresAt: otherRevealMap[m.modelProfile?.id ?? ""] ?? null,
@@ -439,7 +456,6 @@ export function ModelDetailClient({
         </div>
       </div>
 
-      {/* Offer modals */}
       <OfferModal
         open={offerOpen}
         onClose={() => { setOfferOpen(false); setOfferMeetType(null); }}

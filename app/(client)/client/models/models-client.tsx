@@ -27,7 +27,6 @@ interface ModelCharge {
 interface GalleryItem {
   id: string;
   imageUrl: string;
-  originalImageUrl?: string | null;
   order: number;
 }
 
@@ -39,8 +38,7 @@ interface Model {
     id: string; age: number; height: string; city: string; state: string;
     bodyType: string; complexion: string; about: string;
     profilePictureUrl: string;
-    originalPictureUrl?: string | null;
-    allowFaceReveal: boolean; isFaceBlurred: boolean;
+    allowFaceReveal: boolean; isFaceBlurred: boolean; isAvailable: boolean;
     charges: ModelCharge[]; gallery: GalleryItem[];
   };
 }
@@ -54,19 +52,19 @@ interface ModelsClientProps {
 }
 
 export function ModelsClient({
-  models, walletBalance, clientProfileId, revealMap, states,
+  models, walletBalance, revealMap,
 }: ModelsClientProps) {
   const router    = useRouter();
   const { toast } = useToast();
 
-  const [search,          setSearch]          = useState("");
-  const [stateFilter,     setStateFilter]     = useState("all");
-  const [cityFilter,      setCityFilter]      = useState("all");
-  const [bodyTypeFilter,  setBodyTypeFilter]  = useState("all");
-  const [showFilters,     setShowFilters]     = useState(false);
-  const [locating,        setLocating]        = useState(false);
-  const [locationLabel,   setLocationLabel]   = useState<string | null>(null);
-  const [localRevealMap,  setLocalRevealMap]  = useState<Record<string, string>>(revealMap);
+  const [search,         setSearch]         = useState("");
+  const [stateFilter,    setStateFilter]    = useState("all");
+  const [cityFilter,     setCityFilter]     = useState("all");
+  const [bodyTypeFilter, setBodyTypeFilter] = useState("all");
+  const [showFilters,    setShowFilters]    = useState(false);
+  const [locating,       setLocating]       = useState(false);
+  const [locationLabel,  setLocationLabel]  = useState<string | null>(null);
+  const [localRevealMap] = useState<Record<string, string>>(revealMap);
 
   const [offerModal, setOfferModal] = useState<{
     open: boolean;
@@ -77,6 +75,7 @@ export function ModelsClient({
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
     autoDetectLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function autoDetectLocation() {
@@ -149,6 +148,9 @@ export function ModelsClient({
       model: { id: modelId, fullName: m.nickname || m.fullName, profileId, charges: m.modelProfile.charges },
     });
   }
+
+  // Dev guard — caller prop shape guarantees toast exists if we ever need it
+  void toast;
 
   return (
     <>
@@ -314,7 +316,7 @@ export function ModelsClient({
                 {filtered.map((model) => (
                   <ModelCard
                     key={model.id}
-                    model={model as any}
+                    model={model}
                     revealInfo={{
                       revealed:  !!localRevealMap[model.modelProfile?.id ?? ""],
                       expiresAt: localRevealMap[model.modelProfile?.id ?? ""] ?? null,

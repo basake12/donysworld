@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { MapPin, ShieldCheck, Clock, UserCheck } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
+import { useRevealedImages } from "@/hooks/use-revealed-images";
 import { cn } from "@/lib/utils";
 
 interface ModelCharge {
@@ -14,7 +15,6 @@ interface ModelCharge {
 interface GalleryItem {
   id: string;
   imageUrl: string;
-  originalImageUrl?: string | null;
   order: number;
 }
 
@@ -38,7 +38,6 @@ interface ModelCardProps {
       complexion: string;
       about: string;
       profilePictureUrl: string;
-      originalPictureUrl?: string | null;
       allowFaceReveal: boolean;
       isFaceBlurred: boolean;
       isAvailable: boolean;
@@ -70,13 +69,17 @@ export function ModelCard({ model, revealInfo }: ModelCardProps) {
   const galleryCount = p.gallery.length;
   const detailHref  = `/client/models/${model.id}`;
 
+  // One hook per card — fetches profile + gallery originals (card only uses
+  // profilePicture, but the cost is identical and the architecture stays uniform).
+  const revealed = useRevealedImages(p.id, revealInfo.revealed);
+
   return (
     <div className="group relative rounded-2xl border border-border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 hover:border-gold/30 flex flex-col cursor-pointer">
 
       <Link href={detailHref} className="relative aspect-[3/4] bg-secondary overflow-hidden flex-shrink-0 block">
         <FaceBlurImage
           src={p.profilePictureUrl}
-          originalSrc={p.originalPictureUrl}
+          revealedSrc={revealed.profilePicture}
           alt={displayName}
           fill
           revealed={revealInfo.revealed}

@@ -6,7 +6,7 @@ export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Admin client — used in server/api routes only (legal documents)
+// Admin client — used in server/api routes only (legal documents, originals)
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -20,11 +20,12 @@ export const supabaseAdmin = createClient(
 
 // Bucket names
 export const BUCKETS = {
-  PROFILE_PICTURES: "profile-pictures",  // public bucket
-  LEGAL_DOCUMENTS: "legal-documents",    // private bucket — admin only
+  PROFILE_PICTURES:           "profile-pictures",            // PUBLIC — blurred images only
+  PROFILE_PICTURES_ORIGINAL:  "profile-pictures-original",   // PRIVATE — raw originals, signed-URL access only
+  LEGAL_DOCUMENTS:            "legal-documents",             // PRIVATE — admin only
 } as const;
 
-// Get a public URL for profile pictures
+// Get a public URL for blurred profile pictures
 export function getProfilePictureUrl(path: string): string {
   const { data } = supabase.storage
     .from(BUCKETS.PROFILE_PICTURES)

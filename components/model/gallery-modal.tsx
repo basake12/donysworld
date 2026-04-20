@@ -4,21 +4,22 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, X, Eye, Images, Clock } from "lucide-react";
 import { FaceBlurImage } from "./face-blur-image";
+import { useRevealedImages } from "@/hooks/use-revealed-images";
 import { cn } from "@/lib/utils";
 
 interface GalleryItem {
   id: string;
   imageUrl: string;
-  originalImageUrl?: string | null;
   order: number;
 }
 
 interface GalleryModalProps {
   open: boolean;
   onClose: () => void;
+  /** Needed so the hook can fetch the right model's originals. */
+  modelProfileId: string;
   modelName: string;
   profilePicture: string;
-  originalPicture?: string | null;
   gallery: GalleryItem[];
   revealed: boolean;
   allowReveal: boolean;
@@ -27,12 +28,22 @@ interface GalleryModalProps {
   expiresAt: string | null;
 }
 
+/**
+ * Internal image-identity record used to look up the correct revealed URL.
+ *   • `galleryId === null` → this is the profile picture
+ *   • `galleryId === string` → this is the gallery item with that id
+ */
+interface ImageEntry {
+  src: string;
+  galleryId: string | null;
+}
+
 export function GalleryModal({
   open,
   onClose,
+  modelProfileId,
   modelName,
   profilePicture,
-  originalPicture,
   gallery,
   revealed,
   allowReveal,
@@ -42,10 +53,19 @@ export function GalleryModal({
 }: GalleryModalProps) {
   const [current, setCurrent] = useState(0);
 
-  const allImages = [
-    { src: profilePicture, originalSrc: originalPicture },
-    ...gallery.map((g) => ({ src: g.imageUrl, originalSrc: g.originalImageUrl })),
+  // One hook instance for the whole modal — hands back signed URLs for the
+  // profile picture plus every gallery item.
+  const revealedImages = useRevealedImages(modelProfileId, revealed);
+
+  const allImages: ImageEntry[] = [
+    { src: profilePicture, galleryId: null },
+    ...gallery.map((g) => ({ src: g.imageUrl, galleryId: g.id })),
   ];
+
+  function revealedSrcFor(entry: ImageEntry): string | null {
+    if (entry.galleryId === null) return revealedImages.profilePicture;
+    return revealedImages.gallery[entry.galleryId] ?? null;
+  }
 
   function prev() {
     setCurrent((s) => (s === 0 ? allImages.length - 1 : s - 1));
@@ -59,6 +79,8 @@ export function GalleryModal({
     setCurrent(0);
     onClose();
   }
+
+  const activeImage = allImages[current];
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -88,9 +110,9 @@ export function GalleryModal({
         {/* ── MAIN IMAGE ── */}
         <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: "3/4", maxHeight: "65vh" }}>
           <FaceBlurImage
-            key={allImages[current].src}
-            src={allImages[current].src}
-            originalSrc={allImages[current].originalSrc}
+            key={activeImage.src}
+            src={activeImage.src}
+            revealedSrc={revealedSrcFor(activeImage)}
             alt={modelName}
             fill
             revealed={revealed}
@@ -192,7 +214,7 @@ export function GalleryModal({
               >
                 <FaceBlurImage
                   src={img.src}
-                  originalSrc={img.originalSrc}
+                  revealedSrc={revealedSrcFor(img)}
                   alt={`Photo ${i + 1}`}
                   fill
                   revealed={revealed}

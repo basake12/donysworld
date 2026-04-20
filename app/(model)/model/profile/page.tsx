@@ -7,7 +7,7 @@ export default async function ModelProfilePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const [modelProfile, user] = await Promise.all([
+  const [modelProfile, user, pendingEmailChange] = await Promise.all([
     prisma.modelProfile.findUnique({
       where: { userId: session.user.id },
       include: {
@@ -16,17 +16,29 @@ export default async function ModelProfilePage() {
       },
     }),
     prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { fullName: true, email: true, whatsappNumber: true },
+      where:  { id: session.user.id },
+      select: { fullName: true, nickname: true, email: true, whatsappNumber: true },
+    }),
+    prisma.emailChangeToken.findFirst({
+      where:  { userId: session.user.id, expiresAt: { gt: new Date() } },
+      select: { newEmail: true, expiresAt: true },
     }),
   ]);
 
-  if (!modelProfile) redirect("/login");
+  if (!modelProfile || !user) redirect("/login");
 
   return (
     <ModelProfileClient
-      profile={modelProfile as any}
-      user={user as any}
+      profile={modelProfile}
+      user={user}
+      pendingEmailChange={
+        pendingEmailChange
+          ? {
+              newEmail:  pendingEmailChange.newEmail,
+              expiresAt: pendingEmailChange.expiresAt.toISOString(),
+            }
+          : null
+      }
     />
   );
 }

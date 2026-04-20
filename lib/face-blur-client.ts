@@ -1,278 +1,209 @@
 /**
  * lib/face-blur-client.ts
  *
- * Browser-side face detection + canvas blur.
- * Exact port of the reference implementation (zCt, QY, vV, BCt, yV).
+ * Client-side face detection + authoritative blur using MediaPipe Face Detector.
  *
- * Models are loaded from /public/models/ (served as static assets).
- * Call blurFace(imageUrl) to get a pre-blurred JPEG dataUrl.
+ * Input:  a File or Blob (raw image from upload).
+ * Output: a { blurredFile, facesDetected, usedFallback } result — the blurred
+ *         file is what gets sent to the server as the public-bucket version.
  *
- * Only import this file in "use client" components — it uses
- * browser APIs (Image, canvas, navigator) and must never run server-side.
+ * The detector is loaded from MediaPipe's CDN once per page session and
+ * cached. No native deps, no tfjs-node, no server compute — runs entirely
+ * in the user's browser using WASM.
+ *
+ * This file is browser-only. It MUST NOT be imported from a server component.
  */
 
-// ─── Globals ─────────────────────────────────────────────────────────────────
+"use client";
 
-let modelsLoaded = false;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let faceapi: any = null;
+import {
+  FilesetResolver,
+  FaceDetector,
+} from "@mediapipe/tasks-vision";
 
-// ─── Backend init (BCt) ──────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-async function initBackend() {
-  const tf = faceapi?.tf ?? (await import("face-api.js")).tf;
+// Default blur strength in pixels. 35-45px gives a visually opaque face patch.
+const DEFAULT_BLUR_PX = 40;
 
-  if (tf.getBackend()) return; // already set
+// Face padding — expand the detected box by this fraction on each side so
+// the blur extends past ears / chin / hairline.
+const BOX_PADDING = 0.2;
 
-  const isIOS =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// Confidence threshold. MediaPipe returns fairly clean detections, 0.5 is
+// a sane default; lower finds more faces but risks false positives.
+const MIN_CONFIDENCE = 0.5;
+
+// ─── Module-level cache ─────────────────────────────────────────────────────
+
+let detectorPromise: Promise<FaceDetector> | null = null;
+
+async function getDetector(): Promise<FaceDetector> {
+  if (detectorPromise) return detectorPromise;
+
+  detectorPromise = (async () => {
+    const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
+
+    return FaceDetector.createFromModelPath(
+      vision,
+      "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+    );
+  })();
 
   try {
-    if (isIOS) {
-      console.log("[FaceBlur] iOS detected: Forcing CPU backend for stability");
-      await tf.setBackend("cpu");
-    } else {
-      try {
-        await tf.setBackend("webgl");
-      } catch {
-        console.warn("[FaceBlur] WebGL failed, falling back to CPU");
-        await tf.setBackend("cpu");
-      }
-    }
-    await tf.ready();
-    console.log(`[FaceBlur] Backend set to: ${tf.getBackend()}`);
-  } catch (e) {
-    console.error("[FaceBlur] Backend configuration failed:", e);
+    return await detectorPromise;
+  } catch (err) {
+    detectorPromise = null; // allow retry
+    throw err;
   }
 }
 
-// ─── Model loader (yV) ───────────────────────────────────────────────────────
-
-export async function loadModels() {
-  if (modelsLoaded) return;
-
-  const fa = await import("face-api.js");
-  faceapi = fa;
-
-  await initBackend();
-
-  await Promise.all([
-    fa.nets.tinyFaceDetector.loadFromUri("/models"),
-    fa.nets.faceLandmark68Net.loadFromUri("/models"),
-  ]);
-
-  modelsLoaded = true;
-  console.log("[FaceBlur] Models loaded successfully");
-}
-
-// ─── IoU — min-overlap variant (QY) ──────────────────────────────────────────
-// Reference: intersection / Math.min(areaA, areaB) > 0.5
-
-function isDuplicate(
-  e: { x: number; y: number; width: number; height: number },
-  t: { x: number; y: number; width: number; height: number }
-): boolean {
-  const r = Math.max(e.x, t.x);
-  const n = Math.max(e.y, t.y);
-  const a = Math.min(e.x + e.width,  t.x + t.width)  - r;
-  const s = Math.min(e.y + e.height, t.y + t.height) - n;
-  if (a <= 0 || s <= 0) return false;
-  const i = a * s;
-  const o = e.width * e.height;
-  const c = t.width * t.height;
-  const u = Math.min(o, c);
-  return i / u > 0.5;
-}
-
-// ─── Detection — three passes (zCt) ──────────────────────────────────────────
-
-type Box = { x: number; y: number; width: number; height: number };
-type Detection = { box: Box; score: number };
-
-async function detectFaces(img: HTMLImageElement): Promise<Detection[]> {
-  const accepted: Detection[] = [];
-
-  // ── Pass 1: Strict landmark-confirmed, inputSizes [608, 416] ─────────────
-  const inputSizes = [608, 416];
-  const n = 0.3; // detector scoreThreshold (wide net)
-
-  for (const a of inputSizes) {
-    const s = new faceapi.TinyFaceDetectorOptions({ inputSize: a, scoreThreshold: n });
-    const i = await faceapi.detectAllFaces(img, s).withFaceLandmarks();
-
-    if (i.length > 0) {
-      for (const o of i) {
-        const c = o.detection.box as Box;
-        const u = o.detection.score as number;
-        if (u < 0.4) continue;
-        const d = c.width / c.height;
-        if (d < 0.6 || d > 1.5) continue;
-        const h = (c.y + c.height / 2) / img.height;
-        if (h > 0.65 || (c.width * c.height) / (img.width * img.height) < 0.005) continue;
-        if (accepted.some((m) => isDuplicate(m.box, c))) continue;
-        console.log(`[FaceBlur] Accepted face: score=${u.toFixed(2)}, centerY=${h.toFixed(2)}, aspect=${d.toFixed(2)}`);
-        accepted.push({ box: c, score: u });
-      }
-    }
-
-    if (accepted.length > 0) {
-      console.log(`[FaceBlur] Found ${accepted.length} landmark-confirmed face(s) at inputSize ${a}`);
-      break;
-    }
-  }
-
-  // ── Pass 2: Relaxed landmark-confirmed ───────────────────────────────────
-  if (accepted.length === 0) {
-    console.log("[FaceBlur] No faces found in strict pass, trying relaxed landmark pass");
-
-    const a = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 });
-    const s = await faceapi.detectAllFaces(img, a).withFaceLandmarks();
-
-    for (const i of s) {
-      const o = i.detection.box as Box;
-      const c = i.detection.score as number;
-      if (c < 0.35) continue;
-      const u = o.width / o.height;
-      if (u < 0.45 || u > 1.8) continue;
-      const d = (o.y + o.height / 2) / img.height;
-      if (d > 0.85 || (o.width * o.height) / (img.width * img.height) < 0.002) continue;
-      if (accepted.some((p) => isDuplicate(p.box, o))) continue;
-      console.log(`[FaceBlur] Relaxed pass accepted face: score=${c.toFixed(2)}, centerY=${d.toFixed(2)}, aspect=${u.toFixed(2)}`);
-      accepted.push({ box: o, score: c });
-    }
-  }
-
-  // ── Pass 3: Fallback — no landmark confirmation ───────────────────────────
-  if (accepted.length === 0) {
-    const a = new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 });
-    const s = await faceapi.detectAllFaces(img, a);
-
-    for (const i of s) {
-      const o = i.box as Box;
-      const c = (o.y + o.height / 2) / img.height;
-      if (c > 0.5) continue;
-      const u = o.width / o.height;
-      if (u < 0.7 || u > 1.3) continue;
-      accepted.push({ box: o, score: i.score });
-      console.log(`[FaceBlur] Fallback detection: score=${i.score.toFixed(2)}, centerY=${c.toFixed(2)}`);
-    }
-  }
-
-  console.log(`[FaceBlur] Total faces detected: ${accepted.length}`);
-  return accepted;
-}
-
-// ─── Public API (vV) ─────────────────────────────────────────────────────────
+// ─── Public result type ─────────────────────────────────────────────────────
 
 export interface BlurResult {
-  /** Pre-blurred JPEG as a base64 data URL — store this as the public image. */
-  dataUrl: string;
+  /** The blurred image as a File — JPEG, ready to upload. */
+  blurredFile: File;
+  /** Number of faces detected in the source image. */
   facesDetected: number;
   /** True when no face was found and the entire image was blurred instead. */
   usedFallback: boolean;
 }
 
-/**
- * Runs client-side face detection on `imageUrl`, blurs detected faces on a
- * canvas with an elliptical clip + blur(40px), and returns the result as a
- * JPEG data URL.
- *
- * If no faces are found and `fallbackFullBlur` is true (default), the entire
- * image is blurred and `usedFallback` is set to true.
- *
- * @param imageUrl      Public URL or object URL of the source image.
- * @param blurPx        Blur radius in pixels (default 40, matches reference).
- * @param fallbackFullBlur  Blur entire image when no face found (default true).
- */
-export async function blurFace(
-  imageUrl: string,
-  blurPx = 40,
-  fallbackFullBlur = true
-): Promise<BlurResult> {
-  if (!modelsLoaded) await loadModels();
+export interface BlurOptions {
+  /** Blur radius in CSS pixels. Default 40. */
+  blurPx?: number;
+  /** Blur whole image when no face detected. Default true. */
+  fallbackFullBlur?: boolean;
+  /** Filename for the resulting File. Default derives from source. */
+  filename?: string;
+  /** JPEG quality 0-1. Default 0.92. */
+  quality?: number;
+}
 
+// ─── Internal: load a File into an HTMLImageElement ─────────────────────────
+
+function loadImage(file: File | Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.crossOrigin = "anonymous";
-
-    img.onload = async () => {
-      try {
-        console.log("[FaceBlur] Detecting faces...");
-        const faces = await detectFaces(img);
-        console.log(`[FaceBlur] Found ${faces.length} face(s)`);
-
-        const canvas = document.createElement("canvas");
-        canvas.width  = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0);
-
-        if (faces.length > 0) {
-          // Blur each detected face region with an elliptical clip
-          for (const det of faces) {
-            const h = det.box;
-            const f = 0.2; // padding factor — matches reference exactly
-            const p = Math.max(0, h.x - h.width  * f);
-            const m = Math.max(0, h.y - h.height * f);
-            const g = Math.min(canvas.width  - p, h.width  * (1 + 2 * f));
-            const x = Math.min(canvas.height - m, h.height * (1 + 2 * f));
-
-            console.log("[FaceBlur] Blurring face at:", { x: p, y: m, width: g, height: x });
-
-            const cx = p + g / 2;
-            const cy = m + x / 2;
-            const rx = g / 2;
-            const ry = x / 2;
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.filter = `blur(${blurPx}px)`;
-            ctx.drawImage(img, 0, 0);
-            ctx.filter = "none";
-            ctx.restore();
-          }
-
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-          resolve({ dataUrl, facesDetected: faces.length, usedFallback: false });
-
-        } else if (fallbackFullBlur) {
-          // No face found — blur the entire image
-          console.log("[FaceBlur] No faces detected, applying full image blur");
-          ctx.filter = `blur(${blurPx}px)`;
-          ctx.drawImage(img, 0, 0);
-          ctx.filter = "none";
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-          resolve({ dataUrl, facesDetected: 0, usedFallback: true });
-
-        } else {
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-          resolve({ dataUrl, facesDetected: 0, usedFallback: false });
-        }
-
-      } catch (e) {
-        console.error("[FaceBlur] Error processing image:", e);
-        reject(e);
-      }
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
     };
-
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = imageUrl;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not decode image"));
+    };
+    img.src = url;
   });
 }
 
+// ─── Public API ─────────────────────────────────────────────────────────────
+
 /**
- * Converts a base64 data URL back into a File object.
- * Used to turn the blurred dataUrl into an uploadable file (xA in reference).
+ * Detect faces in the image and produce a JPEG with each face blurred under
+ * an elliptical mask. If no face is found and fallbackFullBlur is true
+ * (default), the entire image is blurred.
+ *
+ * Throws if the image cannot be decoded or the detector cannot load. Callers
+ * should handle these errors by showing a user-facing message and declining
+ * to upload.
  */
-export function dataUrlToFile(dataUrl: string, filename: string): File {
-  const [header, base64] = dataUrl.split(",");
-  const mime = header.match(/:(.*?);/)![1];
-  const binary = atob(base64);
-  let len = binary.length;
-  const bytes = new Uint8Array(len);
-  while (len--) bytes[len] = binary.charCodeAt(len);
-  return new File([bytes], filename, { type: mime });
+export async function blurFace(
+  file: File | Blob,
+  options: BlurOptions = {}
+): Promise<BlurResult> {
+  const {
+    blurPx = DEFAULT_BLUR_PX,
+    fallbackFullBlur = true,
+    filename,
+    quality = 0.92,
+  } = options;
+
+  const detector = await getDetector();
+  const img = await loadImage(file);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D not supported");
+
+  // MediaPipe needs an HTMLImageElement-ish input. Detect on the raw image.
+  const results = detector.detect(img);
+  const detections = (results.detections ?? []).filter(
+    (d) => (d.categories?.[0]?.score ?? 0) >= MIN_CONFIDENCE
+  );
+
+  // Always draw the source first.
+  ctx.drawImage(img, 0, 0);
+
+  if (detections.length > 0) {
+    // Targeted blur per face.
+    for (const det of detections) {
+      const box = det.boundingBox;
+      if (!box) continue;
+
+      const padX = Math.max(0, box.originX - box.width * BOX_PADDING);
+      const padY = Math.max(0, box.originY - box.height * BOX_PADDING);
+      const padW = Math.min(
+        canvas.width - padX,
+        box.width * (1 + 2 * BOX_PADDING)
+      );
+      const padH = Math.min(
+        canvas.height - padY,
+        box.height * (1 + 2 * BOX_PADDING)
+      );
+
+      const cx = padX + padW / 2;
+      const cy = padY + padH / 2;
+      const rx = padW / 2;
+      const ry = padH / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.filter = `blur(${blurPx}px)`;
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    }
+  } else if (fallbackFullBlur) {
+    // No face found — blur the entire image as a safety default.
+    ctx.filter = `blur(${blurPx}px)`;
+    ctx.drawImage(img, 0, 0);
+    ctx.filter = "none";
+  }
+  // Else: leave the canvas with just the original (caller opted out of fallback).
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Canvas toBlob failed"))),
+      "image/jpeg",
+      quality
+    );
+  });
+
+  const safeName = filename ?? deriveFilename(file);
+  const blurredFile = new File([blob], safeName, { type: "image/jpeg" });
+
+  return {
+    blurredFile,
+    facesDetected: detections.length,
+    usedFallback: detections.length === 0 && fallbackFullBlur,
+  };
+}
+
+function deriveFilename(file: File | Blob): string {
+  if (file instanceof File && file.name) {
+    const base = file.name.replace(/\.[^.]+$/, "");
+    return `${base}_blurred.jpg`;
+  }
+  return `blurred_${Date.now()}.jpg`;
+}
+
+/** Preload the detector — optional, useful to call on page mount to hide the
+ *  cold-start cost during the first actual blur. */
+export async function warmupFaceBlur(): Promise<void> {
+  await getDetector();
 }

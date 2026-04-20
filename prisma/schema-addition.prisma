@@ -1,0 +1,33 @@
+// ─────────────────────────────────────────────
+// EMAIL CHANGE TOKEN
+// ─────────────────────────────────────────────
+//
+// ADD this block to prisma/schema.prisma, anywhere alongside PasswordResetToken.
+// Then run:
+//   npx prisma db push
+//   npx prisma generate
+//
+// No other schema change is required. PasswordResetToken stays untouched.
+
+model EmailChangeToken {
+  id        String   @id @default(cuid())
+  userId    String
+  newEmail  String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_change_tokens")
+}
+
+// ─────────────────────────────────────────────
+// REQUIRED: add the back-relation to the User model.
+// Find "model User { ... }" in your schema and add ONE LINE inside it,
+// in the relations section alongside `sessions Session[]`:
+//
+//   emailChangeTokens  EmailChangeToken[]
+//
+// That's it. Do not remove anything from User.

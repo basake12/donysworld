@@ -16,7 +16,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Wallet, Users, Bell, LogOut, Menu, HandCoins,
-  UserCircle, ShieldCheck, Coins, Sun, Moon, ShieldX,
+  UserCircle, ShieldCheck, Coins, Sun, Moon, ShieldX, ImageOff,
 } from "lucide-react";
 import { ModelIcon } from "@/components/shared/model-icon";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,7 @@ const ADMIN_LINKS = [
   { href: "/admin/fund-requests", label: "Funds",       icon: Wallet },
   { href: "/admin/withdrawals",   label: "Withdrawals", icon: HandCoins },
   { href: "/admin/wallet",        label: "Wallet",      icon: Coins },
+  { href: "/admin/backfill",      label: "Backfill",    icon: ImageOff },
 ];
 
 const ROLE_LINKS = { CLIENT: CLIENT_LINKS, MODEL: MODEL_LINKS, ADMIN: ADMIN_LINKS };

@@ -13,8 +13,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {},
-
-  // ✅ ADD THIS — tells webpack to ignore Node-only modules in the browser bundle
+  // Tell webpack to ignore Node-only modules in the browser bundle
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -25,7 +24,6 @@ const nextConfig = {
     }
     return config;
   },
-
   images: {
     remotePatterns: [
       {
@@ -45,6 +43,8 @@ const nextConfig = {
     deviceSizes: [375, 640, 750, 828, 1080, 1200],
     minimumCacheTTL: 3600,
   },
+  // Client-side MediaPipe blur — no server-side native deps. The only
+  // server-only package left is... none! All blur runs in the browser.
   experimental: {
     serverActions: {
       allowedOrigins: [
@@ -59,5 +59,4 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
 };
-
 module.exports = withPWA(nextConfig);

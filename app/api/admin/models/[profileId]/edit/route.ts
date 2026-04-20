@@ -42,10 +42,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     } = body;
 
     // ── Update user account fields ─────────────────────────────────────────
-    const userUpdate: Record<string, any> = {};
+    const userUpdate: Record<string, unknown> = {};
     if (fullName !== undefined)       userUpdate.fullName       = fullName.trim();
-    if (nickname !== undefined)        userUpdate.nickname       = nickname?.trim() || null;
-    if (whatsappNumber !== undefined)  userUpdate.whatsappNumber = whatsappNumber.trim();
+    if (nickname !== undefined)       userUpdate.nickname       = nickname?.trim() || null;
+    if (whatsappNumber !== undefined) userUpdate.whatsappNumber = whatsappNumber.trim();
     if (newPassword !== undefined && newPassword.length >= 8) {
       userUpdate.password = await bcrypt.hash(newPassword, 12);
     }
@@ -54,31 +54,31 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     }
 
     // ── Update profile fields ──────────────────────────────────────────────
-    const profileUpdate: Record<string, any> = {};
-    if (age !== undefined)            profileUpdate.age            = parseInt(age);
-    if (height !== undefined)         profileUpdate.height         = height;
-    if (city !== undefined)           profileUpdate.city           = city;
-    if (state !== undefined)          profileUpdate.state          = state;
-    if (bodyType !== undefined)       profileUpdate.bodyType       = bodyType as BodyType;
-    if (complexion !== undefined)     profileUpdate.complexion     = complexion as Complexion;
-    if (about !== undefined)          profileUpdate.about          = about;
+    const profileUpdate: Record<string, unknown> = {};
+    if (age !== undefined)             profileUpdate.age             = parseInt(age);
+    if (height !== undefined)          profileUpdate.height          = height;
+    if (city !== undefined)            profileUpdate.city            = city;
+    if (state !== undefined)           profileUpdate.state           = state;
+    if (bodyType !== undefined)        profileUpdate.bodyType        = bodyType as BodyType;
+    if (complexion !== undefined)      profileUpdate.complexion      = complexion as Complexion;
+    if (about !== undefined)           profileUpdate.about           = about;
     if (allowFaceReveal !== undefined) profileUpdate.allowFaceReveal = Boolean(allowFaceReveal);
-    if (isFaceBlurred !== undefined)  profileUpdate.isFaceBlurred  = Boolean(isFaceBlurred);
-    if (isAvailable !== undefined)    profileUpdate.isAvailable    = Boolean(isAvailable);
-    if (status !== undefined)         profileUpdate.status         = status as ModelStatus;
+    if (isFaceBlurred !== undefined)   profileUpdate.isFaceBlurred   = Boolean(isFaceBlurred);
+    if (isAvailable !== undefined)     profileUpdate.isAvailable     = Boolean(isAvailable);
+    if (status !== undefined)          profileUpdate.status          = status as ModelStatus;
 
     if (Object.keys(profileUpdate).length > 0) {
       await prisma.modelProfile.update({ where: { id: profileId }, data: profileUpdate });
     }
 
     return NextResponse.json({ message: "Model updated successfully" });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[ADMIN MODEL EDIT ERROR]", e);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// ── DELETE — remove a gallery item ───────────────────────────────────────────
+// ── DELETE — remove a gallery item with dual-mode cleanup ────────────────────
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
   try {
     const session = await auth();
@@ -111,18 +111,59 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       );
     });
 
-    // Best-effort storage cleanup
-    for (const url of [item.imageUrl, item.originalImageUrl]) {
-      if (!url) continue;
-      try {
-        const segments = new URL(url).pathname.split(`/${BUCKETS.PROFILE_PICTURES}/`);
-        if (segments[1]) await supabaseAdmin.storage.from(BUCKETS.PROFILE_PICTURES).remove([segments[1]]);
-      } catch { /* ignore */ }
-    }
+    // ── Dual-mode cleanup ────────────────────────────────────────────────
+    // imageUrl is always a public URL (blurred).
+    // originalImageUrl can be either:
+    //   • legacy public URL (pre-backfill)   → delete from PROFILE_PICTURES
+    //   • post-migration private path        → delete from PROFILE_PICTURES_ORIGINAL
+    await Promise.allSettled([
+      deleteBlurred(item.imageUrl),
+      deleteOriginal(item.originalImageUrl),
+    ]);
 
     return NextResponse.json({ message: "Gallery item deleted" });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[ADMIN GALLERY DELETE ERROR]", e);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// ─── Cleanup helpers ────────────────────────────────────────────────────────
+
+async function deleteBlurred(url: string | null | undefined): Promise<void> {
+  if (!url) return;
+  try {
+    const marker = `/${BUCKETS.PROFILE_PICTURES}/`;
+    const idx = url.indexOf(marker);
+    if (idx === -1) return;
+    const path = url.slice(idx + marker.length);
+    if (path) {
+      await supabaseAdmin.storage.from(BUCKETS.PROFILE_PICTURES).remove([path]);
+    }
+  } catch (e) {
+    console.warn("[admin edit] blurred cleanup failed", e);
+  }
+}
+
+async function deleteOriginal(stored: string | null | undefined): Promise<void> {
+  if (!stored) return;
+  try {
+    if (stored.startsWith("http://") || stored.startsWith("https://")) {
+      // Legacy — original was in the PUBLIC bucket.
+      const marker = `/${BUCKETS.PROFILE_PICTURES}/`;
+      const idx = stored.indexOf(marker);
+      if (idx === -1) return;
+      const path = stored.slice(idx + marker.length);
+      if (path) {
+        await supabaseAdmin.storage.from(BUCKETS.PROFILE_PICTURES).remove([path]);
+      }
+    } else {
+      // Post-migration — path in the PRIVATE bucket.
+      await supabaseAdmin.storage
+        .from(BUCKETS.PROFILE_PICTURES_ORIGINAL)
+        .remove([stored]);
+    }
+  } catch (e) {
+    console.warn("[admin edit] original cleanup failed", e);
   }
 }

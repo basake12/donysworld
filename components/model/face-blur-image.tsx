@@ -3,13 +3,30 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
+/**
+ * FaceBlurImage
+ *
+ * Pure presentational component. Renders `src` (the blurred public URL) by
+ * default. When `revealed` is true AND `revealedSrc` is provided, renders
+ * `revealedSrc` instead.
+ *
+ * The parent is responsible for obtaining `revealedSrc` — typically via the
+ * `useRevealedImages` hook, which batches one fetch per model. This component
+ * does no fetching, keeps no URL state, and cannot leak an original URL that
+ * the parent hasn't already chosen to show.
+ *
+ * Countdown badge is driven entirely by `expiresAt` + `revealed`.
+ */
 interface FaceBlurImageProps {
-  /** Pre-blurred version — shown to all clients by default. */
+  /** The blurred public URL — always safe to render. */
   src: string;
-  /** Original unblurred version — only passed when client has an active reveal. */
-  originalSrc?: string | null;
+  /**
+   * The pre-resolved signed URL (or legacy public URL) for the original.
+   * Provide via useRevealedImages(). Null/undefined → stay blurred.
+   */
+  revealedSrc?: string | null;
   alt: string;
-  /** When true and originalSrc is present, show the original. */
+  /** When true and revealedSrc is set, render the original. */
   revealed?: boolean;
   fill?: boolean;
   width?: number;
@@ -17,13 +34,13 @@ interface FaceBlurImageProps {
   className?: string;
   sizes?: string;
   priority?: boolean;
-  /** ISO string — when set and revealed, shows a countdown badge. */
+  /** ISO string — the 24h reveal expiry. Drives the countdown badge only. */
   expiresAt?: string | null;
 }
 
 export function FaceBlurImage({
   src,
-  originalSrc,
+  revealedSrc,
   alt,
   revealed = false,
   fill = false,
@@ -36,22 +53,31 @@ export function FaceBlurImage({
 }: FaceBlurImageProps) {
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
+  // Countdown badge — the 24h reveal window, not the signed-URL TTL.
   useEffect(() => {
-    if (!expiresAt || !revealed) return;
+    if (!expiresAt || !revealed) {
+      setTimeLeft(null);
+      return;
+    }
+
     function calc() {
       const diff = new Date(expiresAt!).getTime() - Date.now();
-      if (diff <= 0) { setTimeLeft(null); return; }
+      if (diff <= 0) {
+        setTimeLeft(null);
+        return;
+      }
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       setTimeLeft(h > 0 ? `${h}h ${m}m` : `${m}m`);
     }
+
     calc();
     const id = setInterval(calc, 60_000);
     return () => clearInterval(id);
   }, [expiresAt, revealed]);
 
-  // Show original only when explicitly revealed and original URL is available.
-  const activeSrc = revealed && originalSrc ? originalSrc : src;
+  const showOriginal = revealed && !!revealedSrc;
+  const activeSrc = showOriginal ? (revealedSrc as string) : src;
 
   const wrapperCls = fill
     ? `absolute inset-0 overflow-hidden ${className}`
@@ -66,6 +92,10 @@ export function FaceBlurImage({
         sizes={sizes ?? "(max-width: 640px) 100vw, 400px"}
         className="object-cover object-top w-full h-full"
         priority={priority}
+        // Signed URLs rotate every ~60s — skip Next's /_next/image proxy so
+        // the fresh URL is actually used instead of being cached under the
+        // now-dead previous URL.
+        unoptimized={showOriginal}
       />
 
       {revealed && timeLeft && (
