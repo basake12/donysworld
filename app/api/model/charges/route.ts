@@ -8,7 +8,7 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(req: NextRequest) {
+async function handleCharges(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return errorResponse("Unauthorized", 401);
@@ -37,9 +37,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (min >= max) {
-        return errorResponse(
-          `${type}: minimum must be less than maximum`
-        );
+        return errorResponse(`${type}: minimum must be less than maximum`);
       }
 
       if (min < limit.min || max > limit.max) {
@@ -75,7 +73,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: "Charges saved successfully" });
   } catch (err: any) {
-    console.error("[MODEL CHARGES POST ERROR]", err);
+    console.error("[MODEL CHARGES ERROR]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// Support both POST (create) and PATCH (update)
+export const POST = handleCharges;
+export const PATCH = handleCharges;

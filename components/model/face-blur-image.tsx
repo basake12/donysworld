@@ -1,40 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
-/**
- * FaceBlurImage
- *
- * Pure presentational component. Renders `src` (the blurred public URL) by
- * default. When `revealed` is true AND `revealedSrc` is provided, renders
- * `revealedSrc` instead.
- *
- * The parent is responsible for obtaining `revealedSrc` — typically via the
- * `useRevealedImages` hook, which batches one fetch per model. This component
- * does no fetching, keeps no URL state, and cannot leak an original URL that
- * the parent hasn't already chosen to show.
- *
- * Countdown badge is driven entirely by `expiresAt` + `revealed`.
- */
 interface FaceBlurImageProps {
-  /** The blurred public URL — always safe to render. */
+  /** Blurred URL stored in DB (always safe to show) */
   src: string;
-  /**
-   * The pre-resolved signed URL (or legacy public URL) for the original.
-   * Provide via useRevealedImages(). Null/undefined → stay blurred.
-   */
+  /** Original clear URL (from useRevealedImages hook) */
   revealedSrc?: string | null;
   alt: string;
-  /** When true and revealedSrc is set, render the original. */
-  revealed?: boolean;
   fill?: boolean;
   width?: number;
   height?: number;
   className?: string;
   sizes?: string;
   priority?: boolean;
-  /** ISO string — the 24h reveal expiry. Drives the countdown badge only. */
+  revealed?: boolean;
   expiresAt?: string | null;
 }
 
@@ -42,26 +23,26 @@ export function FaceBlurImage({
   src,
   revealedSrc,
   alt,
-  revealed = false,
   fill = false,
   width,
   height,
   className = "",
   sizes,
   priority = false,
+  revealed = false,
   expiresAt,
 }: FaceBlurImageProps) {
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
-  // Countdown badge — the 24h reveal window, not the signed-URL TTL.
+  // Countdown for the 24h reveal window
   useEffect(() => {
     if (!expiresAt || !revealed) {
       setTimeLeft(null);
       return;
     }
 
-    function calc() {
-      const diff = new Date(expiresAt!).getTime() - Date.now();
+    const calc = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
       if (diff <= 0) {
         setTimeLeft(null);
         return;
@@ -69,7 +50,7 @@ export function FaceBlurImage({
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       setTimeLeft(h > 0 ? `${h}h ${m}m` : `${m}m`);
-    }
+    };
 
     calc();
     const id = setInterval(calc, 60_000);
@@ -79,12 +60,26 @@ export function FaceBlurImage({
   const showOriginal = revealed && !!revealedSrc;
   const activeSrc = showOriginal ? (revealedSrc as string) : src;
 
-  const wrapperCls = fill
-    ? `absolute inset-0 overflow-hidden ${className}`
-    : `relative overflow-hidden ${className}`;
-
   return (
-    <div className={wrapperCls}>
+    /**
+     * ✅ FIX: When fill={true}, <Image fill> sizes itself relative to its
+     * immediate parent. The old code used `relative` here, which gave the
+     * wrapper div zero height, causing every fill image to render at 0px tall.
+     *
+     * Fix: use `absolute inset-0` so the wrapper stretches to fill the
+     * grandparent (which has the real aspect-ratio / height set by the caller),
+     * giving <Image fill> a correctly-sized container to expand into.
+     *
+     * When fill={false} we still use `relative overflow-hidden` because the
+     * image has explicit width/height and doesn't need to fill a parent.
+     */
+    <div
+      className={
+        fill
+          ? `absolute inset-0 ${className}`
+          : `relative overflow-hidden ${className}`
+      }
+    >
       <Image
         src={activeSrc}
         alt={alt}
@@ -92,17 +87,13 @@ export function FaceBlurImage({
         sizes={sizes ?? "(max-width: 640px) 100vw, 400px"}
         className="object-cover object-top w-full h-full"
         priority={priority}
-        // Signed URLs rotate every ~60s — skip Next's /_next/image proxy so
-        // the fresh URL is actually used instead of being cached under the
-        // now-dead previous URL.
+        // Skip Next.js image optimization for signed/original URLs
         unoptimized={showOriginal}
       />
 
+      {/* Reveal countdown badge */}
       {revealed && timeLeft && (
-        <div
-          className="absolute top-2 right-2 flex items-center gap-1 rounded-xl bg-black/70 border border-gold/30 px-2 py-1 text-[10px] text-gold font-bold backdrop-blur-sm pointer-events-none"
-          style={{ zIndex: 10 }}
-        >
+        <div className="absolute top-2 right-2 flex items-center gap-1 rounded-xl bg-black/70 border border-gold/30 px-2 py-1 text-[10px] text-gold font-bold backdrop-blur-sm pointer-events-none z-10">
           👁 {timeLeft}
         </div>
       )}

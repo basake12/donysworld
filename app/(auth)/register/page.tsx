@@ -130,19 +130,18 @@ export default function RegisterPage() {
   const searchParams = useSearchParams();
   const { toast }    = useToast();
 
-  const [role, setRole]           = useState<"CLIENT" | "MODEL">(
+  const [role, setRole] = useState<"CLIENT" | "MODEL">(
     searchParams.get("role") === "model" ? "MODEL" : "CLIENT"
   );
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm,  setShowConfirm]  = useState(false);
   const [loading,      setLoading]      = useState(false);
 
-  // The original file selected by the user (before blur)
-  const [originalPicture, setOriginalPicture]           = useState<File | null>(null);
+  const [profilePicture,        setProfilePicture]        = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
-  const [documentFile,   setDocumentFile]   = useState<File | null>(null);
-  const [success,        setSuccess]        = useState(false);
-  const [blurStatus,     setBlurStatus]     = useState<string | null>(null);
+  const [documentFile,          setDocumentFile]          = useState<File | null>(null);
+  const [success,               setSuccess]               = useState(false);
+  const [blurStatus,            setBlurStatus]            = useState<string | null>(null);
 
   const clientForm = useForm<ClientFormData>({ resolver: zodResolver(clientSchema) });
   const modelForm  = useForm<ModelFormData>({ resolver: zodResolver(modelSchema) });
@@ -154,7 +153,7 @@ export default function RegisterPage() {
       toast({ title: "File too large", description: "Profile picture must be under 10MB", variant: "destructive" });
       return;
     }
-    setOriginalPicture(file);
+    setProfilePicture(file);
     const reader = new FileReader();
     reader.onloadend = () => setProfilePicturePreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -190,7 +189,7 @@ export default function RegisterPage() {
   }
 
   async function onModelSubmit(data: ModelFormData) {
-    if (!originalPicture) {
+    if (!profilePicture) {
       toast({ title: "Profile picture required", description: "Upload a clear profile photo", variant: "destructive" });
       return;
     }
@@ -198,35 +197,23 @@ export default function RegisterPage() {
       toast({ title: "Document required", description: "Upload your legal document", variant: "destructive" });
       return;
     }
-    if (originalPicture.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Profile picture must be under 10MB", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    try {
-      // Step 1: Blur the face client-side with MediaPipe.
-      setBlurStatus("Detecting & blurring face...");
-      const { blurFace } = await import("@/lib/face-blur-client");
-      const blurResult = await blurFace(originalPicture, {
-        filename: `blurred_${originalPicture.name.replace(/\.[^.]+$/, "")}.jpg`,
-      });
 
-      // Step 2: Send both files to the server.
-      setBlurStatus("Uploading...");
+    setLoading(true);
+    setBlurStatus("Uploading & blurring face...");
+
+    try {
       const formData = new FormData();
       Object.entries(data).forEach(([k, v]) => formData.append(k, v as string));
       formData.append("role", "MODEL");
-      formData.append("profilePicture", blurResult.blurredFile);
-      formData.append("originalPicture", originalPicture);
+      formData.append("profilePicture", profilePicture);
       formData.append("document", documentFile);
 
       const res  = await fetch("/api/auth/register", { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Registration failed");
       setSuccess(true);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Registration failed";
-      toast({ title: "Registration failed", description: msg, variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
       setBlurStatus(null);
@@ -452,7 +439,7 @@ export default function RegisterPage() {
                 <label htmlFor="profilePic" className="block cursor-pointer">
                   <div className={cn(
                     "relative flex items-center gap-3 rounded-2xl border-2 border-dashed p-3.5 transition-all duration-200",
-                    originalPicture
+                    profilePicture
                       ? "border-gold/50 bg-gold/5"
                       : "border-border hover:border-gold/30 hover:bg-secondary/80"
                   )}>
@@ -465,7 +452,7 @@ export default function RegisterPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-foreground truncate">
-                        {originalPicture ? originalPicture.name : "Upload your photo"}
+                        {profilePicture ? profilePicture.name : "Upload your photo"}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         JPG, PNG or WebP · Max 10MB · Face auto-blurs on submit
@@ -473,11 +460,11 @@ export default function RegisterPage() {
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <Upload className="h-3 w-3 text-gold" />
                         <span className="text-[11px] text-gold font-bold">
-                          {originalPicture ? "Change photo" : "Browse files"}
+                          {profilePicture ? "Change photo" : "Browse files"}
                         </span>
                       </div>
                     </div>
-                    {originalPicture && (
+                    {profilePicture && (
                       <div className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30">
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       </div>
@@ -582,7 +569,7 @@ export default function RegisterPage() {
                 <p className="text-[11px] text-muted-foreground">Image or PDF · Max 10MB · Only visible to admin</p>
               </div>
 
-              {/* ── Blur status ── */}
+              {/* ── Upload status ── */}
               {blurStatus && (
                 <div className="flex items-center gap-2 rounded-xl bg-gold/10 border border-gold/20 px-4 py-3">
                   <Loader2 className="h-3.5 w-3.5 text-gold animate-spin shrink-0" />

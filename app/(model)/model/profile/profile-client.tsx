@@ -273,42 +273,60 @@ export function ModelProfileClient({ profile, user, pendingEmailChange }: Profil
     }
   }
 
+  async function onChargesSubmit() {
+    setSavingCharges(true);
+    try {
+      const res = await fetch("/api/model/charges", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          charges: [
+            { meetType: "SHORT",     minCoins: charges.SHORT_min,     maxCoins: charges.SHORT_max     },
+            { meetType: "OVERNIGHT", minCoins: charges.OVERNIGHT_min, maxCoins: charges.OVERNIGHT_max },
+            { meetType: "WEEKEND",   minCoins: charges.WEEKEND_min,   maxCoins: charges.WEEKEND_max   },
+          ],
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast({ title: "Charges saved!" });
+      router.refresh();
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingCharges(false);
+    }
+  }
+
   async function handleProfilePicChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const allowed = ["image/jpeg", "image/png", "image/webp"];
-    if (!allowed.includes(file.type)) { toast({ title: "JPG, PNG or WebP only", variant: "destructive" }); return; }
-    if (file.size > 10 * 1024 * 1024) { toast({ title: "Max 10MB", variant: "destructive" }); return; }
-    setUploadingPic(true);
-    setBlurStatus("Detecting & blurring face...");
-    try {
-      // Step 1: Client-side MediaPipe blur.
-      const { blurFace } = await import("@/lib/face-blur-client");
-      const blurResult = await blurFace(file, {
-        filename: `blurred_${file.name.replace(/\.[^.]+$/, "")}.jpg`,
-      });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Max 10MB", variant: "destructive" });
+      return;
+    }
 
-      // Step 2: Upload both the blurred and the raw original.
-      setBlurStatus("Uploading...");
+    setUploadingPic(true);
+    setBlurStatus("Uploading & blurring...");
+
+    try {
       const form = new FormData();
-      form.append("image",    blurResult.blurredFile);
-      form.append("original", file);
-      const res  = await fetch("/api/model/profile/picture", { method: "PATCH", body: form });
+      form.append("image", file);
+      form.append("profileId", profile.id);
+
+      const res = await fetch("/api/model/profile/picture", {
+        method: "PATCH",
+        body: form,
+      });
       const data = await res.json();
+
       if (!res.ok) throw new Error(data.error);
+
       setCurrentPicUrl(data.profilePictureUrl);
-      if (blurResult.usedFallback) {
-        toast({
-          title: "Profile picture updated",
-          description: "We couldn't detect a face clearly, so the whole image was blurred. Try a clearer front-facing photo for a tighter blur.",
-        });
-      } else {
-        toast({ title: "Profile picture updated!" });
-      }
+      toast({ title: "Profile picture updated!" });
       router.refresh();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
     } finally {
       setUploadingPic(false);
       setBlurStatus(null);
@@ -316,63 +334,32 @@ export function ModelProfileClient({ profile, user, pendingEmailChange }: Profil
     }
   }
 
-  async function onChargesSubmit() {
-    const types = ["SHORT", "OVERNIGHT", "WEEKEND"] as const;
-    for (const t of types) {
-      if (charges[`${t}_min`] >= charges[`${t}_max`]) {
-        toast({ title: `${t}: min must be less than max`, variant: "destructive" }); return;
-      }
-    }
-    setSavingCharges(true);
-    try {
-      const res  = await fetch("/api/model/charges", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ charges }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      toast({ title: "Charges saved!" });
-      router.refresh();
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
-    } finally {
-      setSavingCharges(false);
-    }
-  }
-
   async function handleGalleryUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast({ title: "Max 10MB", variant: "destructive" }); return; }
-    setUploadingGallery(true);
-    setBlurStatus("Detecting & blurring face...");
-    try {
-      // Step 1: Client-side MediaPipe blur.
-      const { blurFace } = await import("@/lib/face-blur-client");
-      const blurResult = await blurFace(file, {
-        filename: `blurred_${file.name.replace(/\.[^.]+$/, "")}.jpg`,
-      });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Max 10MB", variant: "destructive" });
+      return;
+    }
 
-      // Step 2: Upload both the blurred and the raw original.
-      setBlurStatus("Uploading...");
+    setUploadingGallery(true);
+    setBlurStatus("Uploading & blurring...");
+
+    try {
       const form = new FormData();
-      form.append("image",    blurResult.blurredFile);
-      form.append("original", file);
-      const res  = await fetch("/api/model/gallery", { method: "POST", body: form });
+      form.append("image", file);
+      form.append("profileId", profile.id);
+      form.append("order", String(gallery.length));
+
+      const res = await fetch("/api/model/gallery", { method: "POST", body: form });
       const data = await res.json();
+
       if (!res.ok) throw new Error(data.error);
+
       setGallery((prev) => [...prev, data.item]);
-      if (blurResult.usedFallback) {
-        toast({
-          title: "Photo added",
-          description: "We couldn't detect a face clearly, so the whole image was blurred.",
-        });
-      } else {
-        toast({ title: "Photo added!" });
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      toast({ title: "Photo added!" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
     } finally {
       setUploadingGallery(false);
       setBlurStatus(null);

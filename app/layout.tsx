@@ -22,22 +22,13 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: "Dony's World — Connect with Verified Models",
-  description:
-    "The premium platform where clients meet verified models across Nigeria. Secure, private, powered by Dony's Coins.",
+  description: "The premium platform where clients meet verified models across Nigeria. Secure, private, powered by Dony's Coins.",
   manifest: "/manifest.json",
-  icons: {
-    apple: "/icons/icon-192.png",
-  },
+  icons: { apple: "/icons/icon-192.png" },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Dony's World",
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "Dony's World",
   },
 };
 
@@ -65,7 +56,10 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${playfair.variable}`}
     >
-      <body className="bg-background text-foreground antialiased font-sans">
+      <body
+        className="bg-background text-foreground antialiased font-sans"
+        suppressHydrationWarning
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
@@ -74,14 +68,14 @@ export default async function RootLayout({
         >
           <SessionProvider session={session}>
             {children}
-            {/* Custom useToast-based toaster — used by dashboards & forms */}
             <Toaster />
-            {/* Sonner toaster — used by login, register, forgot-password, reset-password */}
             <SonnerToaster position="top-center" richColors closeButton />
+            {/* ✅ FIX: Moved inside the provider tree so React manages it correctly.
+                If Smartsupp uses a raw <script> tag internally, update it to use
+                Next.js <Script strategy="afterInteractive"> from "next/script". */}
+            <Smartsupp />
           </SessionProvider>
         </ThemeProvider>
-
-        <Smartsupp />
       </body>
     </html>
   );

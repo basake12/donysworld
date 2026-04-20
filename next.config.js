@@ -3,60 +3,42 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  cacheOnFrontEndNav: true,
-  reloadOnOnline: true,
-  workboxOptions: {
-    disableDevLogs: true,
-  },
 });
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  turbopack: {},
-  // Tell webpack to ignore Node-only modules in the browser bundle
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        encoding: false,
-      };
-    }
-    return config;
-  },
   images: {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.supabase.co",
-        port: "",
+        hostname: "res.cloudinary.com",
         pathname: "/**",
       },
       {
         protocol: "https",
-        hostname: "images.unsplash.com",
-        port: "",
+        hostname: "*.supabase.co",
         pathname: "/**",
       },
     ],
-    formats: ["image/webp"],
+    formats: ["image/webp", "image/avif"],
     deviceSizes: [375, 640, 750, 828, 1080, 1200],
     minimumCacheTTL: 3600,
   },
-  // Client-side MediaPipe blur — no server-side native deps. The only
-  // server-only package left is... none! All blur runs in the browser.
+
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = { ...config.resolve.fallback, fs: false, encoding: false };
+    }
+    return config;
+  },
+
   experimental: {
     serverActions: {
-      allowedOrigins: [
-        "localhost:3000",
-        "192.168.1.187:3000",
-        "*.vercel.app",
-        "donysworld.com",
-        "www.donysworld.com",
-      ],
+      allowedOrigins: ["localhost:3000", "*.vercel.app", "donysworld.com"],
     },
   },
+
   compress: true,
   poweredByHeader: false,
 };
+
 module.exports = withPWA(nextConfig);

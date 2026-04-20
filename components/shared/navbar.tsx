@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -65,6 +65,11 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
   const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // ✅ FIX: Prevents hydration mismatch — theme is undefined on the server,
+  // so we defer icon rendering until after the client has mounted.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const role     = session.user.role as "CLIENT" | "MODEL" | "ADMIN";
   const links    = ROLE_LINKS[role] ?? CLIENT_LINKS;
   const initials = session.user.name
@@ -100,7 +105,7 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
     <header className="sticky top-0 z-50 border-b border-border bg-card/90 backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between px-4 md:px-6 gap-3">
 
-        {/* ── Logo + Desktop nav ─────────────── */}
+        {/* Logo + Desktop nav */}
         <div className="flex items-center gap-5">
           <Link href={`/${role.toLowerCase()}/dashboard`} className="flex items-center gap-2 shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold/12 border border-gold/25">
@@ -115,18 +120,27 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
           </nav>
         </div>
 
-        {/* ── Right actions ──────────────────── */}
+        {/* Right actions */}
         <div className="flex items-center gap-2">
 
-          {/* Theme toggle */}
+          {/* ✅ FIX: Theme toggle — render icon only after mount to avoid SSR mismatch.
+              A consistent placeholder (Sun) is shown during SSR so both sides agree. */}
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground hover:text-foreground hover:border-gold/40 transition-all"
             suppressHydrationWarning
+            aria-label="Toggle theme"
           >
-            {theme === "dark"
-              ? <Sun className="h-4 w-4 text-gold" />
-              : <Moon className="h-4 w-4 text-gold" />}
+            {mounted ? (
+              theme === "dark" ? (
+                <Sun className="h-4 w-4 text-gold" />
+              ) : (
+                <Moon className="h-4 w-4 text-gold" />
+              )
+            ) : (
+              // Stable placeholder rendered on both server and client until mounted
+              <Sun className="h-4 w-4 text-gold" />
+            )}
           </button>
 
           {/* Notifications */}
