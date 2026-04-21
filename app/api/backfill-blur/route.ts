@@ -2,108 +2,115 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { v2 as cloudinary } from "cloudinary";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
-});
+// ── Config ────────────────────────────────────────────────────────
+const BLUR = "e_blur_faces:2000,q_85";
+const SUPABASE_STORAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public`;
 
-const TRANSFORM = "e_blur_faces:2000,q_85";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_STORAGE = `${SUPABASE_URL}/storage/v1/object/public`;
-
-function buildBlurredUrl(originalUrl: string, cloudName: string): string {
-  const url = originalUrl.split("?")[0].trim();
-
-  if (url.includes("res.cloudinary.com")) {
-    const afterUpload = url.split("/image/upload/")[1];
-    if (!afterUpload) {
-      return `https://res.cloudinary.com/${cloudName}/image/fetch/${TRANSFORM}/${encodeURIComponent(url)}`;
-    }
-    return `https://res.cloudinary.com/${cloudName}/image/upload/${TRANSFORM}/${afterUpload}`;
-  }
-
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return `https://res.cloudinary.com/${cloudName}/image/fetch/${TRANSFORM}/${encodeURIComponent(url)}`;
-  }
-
-  if (!url.includes("/")) {
-    const supabaseUrl = `${SUPABASE_STORAGE}/profile-pictures/original/${url}`;
-    return `https://res.cloudinary.com/${cloudName}/image/fetch/${TRANSFORM}/${encodeURIComponent(supabaseUrl)}`;
-  }
-
-  if (url.startsWith("gallery/")) {
-    const supabaseUrl = `${SUPABASE_STORAGE}/profile-pictures/${url}`;
-    return `https://res.cloudinary.com/${cloudName}/image/fetch/${TRANSFORM}/${encodeURIComponent(supabaseUrl)}`;
-  }
-
-  return `https://res.cloudinary.com/${cloudName}/image/upload/${TRANSFORM}/${url}`;
+function configure() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+    api_key: process.env.CLOUDINARY_API_KEY!,
+    api_secret: process.env.CLOUDINARY_API_SECRET!,
+    secure: true,
+  });
 }
 
+// ── Resolve any stored format into a full fetchable URL ───────────
+function resolveUrl(raw: string): string {
+  const url = raw.split("?")[0].trim();
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (!url.includes("/")) return `${SUPABASE_STORAGE}/profile-pictures/original/${url}`;
+  if (url.startsWith("gallery/")) return `${SUPABASE_STORAGE}/profile-pictures/${url}`;
+  // bare Cloudinary public_id
+  return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${url}`;
+}
+
+// ── Download → Cloudinary upload → return blurred URL ────────────
+async function migrate(sourceUrl: string, folder: string, publicId: string): Promise<string> {
+  const res = await fetch(sourceUrl);
+  if (!res.ok) throw new Error(`Download failed (${res.status}): ${sourceUrl}`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+
+  const result = await new Promise<any>((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        { folder, public_id: publicId, resource_type: "image", overwrite: true, invalidate: true },
+        (err, result) => (err ? reject(err) : resolve(result))
+      )
+      .end(buffer);
+  });
+
+  return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${BLUR}/v${result.version}/${result.public_id}`;
+}
+
+// ── GET /api/admin/blur-backfill ──────────────────────────────────
 export async function GET() {
-  try {
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
-    console.log("🚀 Starting blur backfill...");
+  configure();
 
-    let profileCount = 0;
-    let galleryCount = 0;
-    const errors: string[] = [];
+  const results = { profiles: 0, gallery: 0, skipped: 0, errors: [] as string[] };
 
-    const profiles = await prisma.modelProfile.findMany({
-      where: { originalPictureUrl: { not: null } },
-      select: { id: true, originalPictureUrl: true },
-    });
+  // ── Profiles ──────────────────────────────────────────────────
+  const profiles = await prisma.modelProfile.findMany({
+    where: { originalPictureUrl: { not: null } },
+    select: { id: true, originalPictureUrl: true },
+  });
 
-    for (const profile of profiles) {
-      if (!profile.originalPictureUrl) continue;
-      try {
-        const blurredUrl = buildBlurredUrl(profile.originalPictureUrl, cloudName);
-        await prisma.modelProfile.update({
-          where: { id: profile.id },
-          data: { profilePictureUrl: blurredUrl },
-        });
-        profileCount++;
-        console.log(`✅ Profile ${profile.id}  →  ${blurredUrl}`);
-      } catch (err: any) {
-        const msg = `❌ Profile ${profile.id}: ${err.message}`;
-        console.error(msg);
-        errors.push(msg);
-      }
+  for (const p of profiles) {
+    if (!p.originalPictureUrl) continue;
+
+    const source = resolveUrl(p.originalPictureUrl);
+
+    // Already a proper Cloudinary upload URL — skip
+    if (source.includes("res.cloudinary.com") && source.includes("/image/upload/")) {
+      results.skipped++;
+      continue;
     }
 
-    const galleryItems = await prisma.modelGallery.findMany({
-      where: { originalImageUrl: { not: null } },
-      select: { id: true, originalImageUrl: true },
-    });
-
-    for (const item of galleryItems) {
-      if (!item.originalImageUrl) continue;
-      try {
-        const blurredUrl = buildBlurredUrl(item.originalImageUrl, cloudName);
-        await prisma.modelGallery.update({
-          where: { id: item.id },
-          data: { imageUrl: blurredUrl },
-        });
-        galleryCount++;
-        console.log(`✅ Gallery ${item.id}  →  ${blurredUrl}`);
-      } catch (err: any) {
-        const msg = `❌ Gallery ${item.id}: ${err.message}`;
-        console.error(msg);
-        errors.push(msg);
-      }
+    try {
+      const blurredUrl = await migrate(source, "donys-world/profiles", p.id);
+      await prisma.modelProfile.update({ where: { id: p.id }, data: { profilePictureUrl: blurredUrl } });
+      results.profiles++;
+      console.log(`✅ profile ${p.id}`);
+    } catch (e: any) {
+      const msg = `profile ${p.id}: ${e.message}`;
+      results.errors.push(msg);
+      console.error(`❌ ${msg}`);
     }
-
-    console.log(`🎉 Backfill finished! ${profileCount} profiles + ${galleryCount} gallery images. Errors: ${errors.length}`);
-
-    return NextResponse.json({
-      success: true,
-      message: `Done! ${profileCount} profiles + ${galleryCount} gallery images updated.`,
-      ...(errors.length > 0 && { errors }),
-    });
-  } catch (error: any) {
-    console.error("Backfill failed:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+
+  // ── Gallery ───────────────────────────────────────────────────
+  const gallery = await prisma.modelGallery.findMany({
+    where: { originalImageUrl: { not: null } },
+    select: { id: true, originalImageUrl: true },
+  });
+
+  for (const g of gallery) {
+    if (!g.originalImageUrl) continue;
+
+    const source = resolveUrl(g.originalImageUrl);
+
+    if (source.includes("res.cloudinary.com") && source.includes("/image/upload/")) {
+      results.skipped++;
+      continue;
+    }
+
+    try {
+      const blurredUrl = await migrate(source, "donys-world/gallery", g.id);
+      await prisma.modelGallery.update({ where: { id: g.id }, data: { imageUrl: blurredUrl } });
+      results.gallery++;
+      console.log(`✅ gallery ${g.id}`);
+    } catch (e: any) {
+      const msg = `gallery ${g.id}: ${e.message}`;
+      results.errors.push(msg);
+      console.error(`❌ ${msg}`);
+    }
+  }
+
+  console.log(`🎉 Done — profiles: ${results.profiles}, gallery: ${results.gallery}, skipped: ${results.skipped}, errors: ${results.errors.length}`);
+
+  return NextResponse.json({
+    success: true,
+    ...results,
+    message: `Migrated ${results.profiles} profiles + ${results.gallery} gallery images. ${results.skipped} already on Cloudinary. ${results.errors.length} errors.`,
+  });
 }

@@ -12,14 +12,22 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Next.js 15+: params is a Promise — must be awaited
   const { modelProfileId } = await params;
 
-  // Check they paid for reveal
+  // clientId in faceReveal = clientProfile.id, NOT session.user.id
+  const clientProfile = await prisma.clientProfile.findUnique({
+    where: { userId: session.user.id },
+    select: { id: true },
+  });
+
+  if (!clientProfile) {
+    return NextResponse.json({ error: "Client profile not found" }, { status: 404 });
+  }
+
   const reveal = await prisma.faceReveal.findUnique({
     where: {
       clientId_modelProfileId: {
-        clientId: session.user.id,
+        clientId: clientProfile.id,
         modelProfileId,
       },
     },
@@ -41,7 +49,7 @@ export async function GET(
   const signedUrl = cloudinary.url(model.originalPictureUrl, {
     secure: true,
     sign_url: true,
-    expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour fresh link
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
   });
 
   return NextResponse.json({

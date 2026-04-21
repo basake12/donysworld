@@ -8,6 +8,8 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+const VALID_TYPES = ["SHORT", "OVERNIGHT", "WEEKEND"] as const;
+
 async function handleCharges(req: NextRequest) {
   try {
     const session = await auth();
@@ -17,56 +19,39 @@ async function handleCharges(req: NextRequest) {
 
     const { charges } = await req.json();
 
-    if (!charges) return errorResponse("Charges are required");
+    // Accept array format: [{ meetType, minCoins, maxCoins }]
+    if (!Array.isArray(charges) || charges.length === 0)
+      return errorResponse("Charges must be a non-empty array");
 
     const modelProfile = await prisma.modelProfile.findUnique({
       where: { userId: session.user.id },
     });
-
     if (!modelProfile) return errorResponse("Model profile not found");
 
-    const types = ["SHORT", "OVERNIGHT", "WEEKEND"] as const;
+    for (const charge of charges) {
+      const { meetType, minCoins, maxCoins } = charge;
 
-    for (const type of types) {
-      const min = charges[`${type}_min`];
-      const max = charges[`${type}_max`];
-      const limit = MEET_LIMITS[type];
+      if (!VALID_TYPES.includes(meetType))
+        return errorResponse(`Invalid meetType: ${meetType}`);
 
-      if (typeof min !== "number" || typeof max !== "number") {
-        return errorResponse(`Invalid values for ${type}`);
-      }
+      if (typeof minCoins !== "number" || typeof maxCoins !== "number")
+        return errorResponse(`Invalid values for ${meetType}`);
 
-      if (min >= max) {
-        return errorResponse(`${type}: minimum must be less than maximum`);
-      }
+      const limit = MEET_LIMITS[meetType as typeof VALID_TYPES[number]];
 
-      if (min < limit.min || max > limit.max) {
-        return errorResponse(
-          `${type}: values must be between ${limit.min} and ${limit.max}`
-        );
-      }
+      if (minCoins >= maxCoins)
+        return errorResponse(`${meetType}: minimum must be less than maximum`);
+
+      if (minCoins < limit.min || maxCoins > limit.max)
+        return errorResponse(`${meetType}: values must be between ${limit.min} and ${limit.max}`);
     }
 
-    // Upsert all three charge types
     await prisma.$transaction(
-      types.map((type) =>
+      charges.map(({ meetType, minCoins, maxCoins }: { meetType: MeetType; minCoins: number; maxCoins: number }) =>
         prisma.modelCharge.upsert({
-          where: {
-            modelProfileId_meetType: {
-              modelProfileId: modelProfile.id,
-              meetType: type as MeetType,
-            },
-          },
-          update: {
-            minCoins: charges[`${type}_min`],
-            maxCoins: charges[`${type}_max`],
-          },
-          create: {
-            modelProfileId: modelProfile.id,
-            meetType: type as MeetType,
-            minCoins: charges[`${type}_min`],
-            maxCoins: charges[`${type}_max`],
-          },
+          where: { modelProfileId_meetType: { modelProfileId: modelProfile.id, meetType } },
+          update: { minCoins, maxCoins },
+          create: { modelProfileId: modelProfile.id, meetType, minCoins, maxCoins },
         })
       )
     );
@@ -78,6 +63,5 @@ async function handleCharges(req: NextRequest) {
   }
 }
 
-// Support both POST (create) and PATCH (update)
 export const POST = handleCharges;
 export const PATCH = handleCharges;
