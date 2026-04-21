@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TransactionType, TransactionStatus } from "@prisma/client";
+import { TransactionStatus } from "@prisma/client";
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -19,10 +19,8 @@ export async function POST(req: NextRequest) {
       return errorResponse("Only models can redeem coupons", 403);
 
     const { couponCode } = await req.json();
-
-    if (!couponCode || typeof couponCode !== "string") {
+    if (!couponCode || typeof couponCode !== "string")
       return errorResponse("Coupon code is required");
-    }
 
     // ── Find receipt ───────────────────────────
     const receipt = await prisma.receipt.findUnique({
@@ -30,88 +28,79 @@ export async function POST(req: NextRequest) {
       include: {
         offer: {
           include: {
-            model: { select: { id: true, fullName: true } },
+            model:  { select: { id: true, fullName: true } },
             client: { select: { id: true, fullName: true } },
           },
         },
       },
     });
 
-    if (!receipt) {
-      return errorResponse("Invalid coupon code");
-    }
-
-    if (receipt.isRedeemed) {
-      return errorResponse("This coupon has already been redeemed");
-    }
-
-    // ── Verify model owns this offer ───────────
-    if (receipt.offer.modelId !== session.user.id) {
+    if (!receipt)          return errorResponse("Invalid coupon code");
+    if (receipt.isRedeemed) return errorResponse("This coupon has already been redeemed");
+    if (receipt.offer.modelId !== session.user.id)
       return errorResponse("This coupon does not belong to your offer");
-    }
-
-    if (receipt.offer.status !== "ACCEPTED") {
+    if (receipt.offer.status !== "ACCEPTED")
       return errorResponse("This offer is not in an accepted state");
-    }
 
-    // ── Fetch model wallet ─────────────────────
+    // ── Find the wallet ────────────────────────
     const modelWallet = await prisma.wallet.findUnique({
       where: { userId: session.user.id },
     });
-
     if (!modelWallet) return errorResponse("Wallet not found");
 
-    const coinsToRedeem = receipt.coinsAmount;
-    const modelFee = Math.floor(coinsToRedeem * 0.1);
-    const modelReceives = coinsToRedeem - modelFee;
+    // ── Get the exact amount that was put into pending at accept time ──────
+    // This avoids applying a second fee — the fee was already deducted when
+    // the offer was accepted and pendingCoins was incremented.
+    const pendingTx = await prisma.transaction.findFirst({
+      where: {
+        walletId: modelWallet.id,
+        reference: `pending_${receipt.offerId}`,
+        status: TransactionStatus.PENDING,
+      },
+      select: { id: true, amount: true },
+    });
+
+    if (!pendingTx)
+      return errorResponse("Pending transaction not found — contact support");
+
+    const coinsToRelease = pendingTx.amount; // exact amount put in pending
 
     // ── Redeem: move pending → available ───────
     await prisma.$transaction(async (tx) => {
-      // Mark receipt as redeemed
       await tx.receipt.update({
         where: { id: receipt.id },
-        data: {
-          isRedeemed: true,
-          redeemedAt: new Date(),
-        },
+        data: { isRedeemed: true, redeemedAt: new Date() },
       });
 
-      // Update offer to completed
       await tx.offer.update({
         where: { id: receipt.offerId },
         data: { status: "COMPLETED" },
       });
 
-      // Move coins from pending to available balance
+      // Move exact pending amount to available balance
       await tx.wallet.update({
         where: { userId: session.user.id },
         data: {
-          pendingCoins: { decrement: modelReceives },
-          balance: { increment: modelReceives },
+          pendingCoins: { decrement: coinsToRelease },
+          balance:      { increment: coinsToRelease },
         },
       });
 
-      // Update transaction to completed
-      await tx.transaction.updateMany({
-        where: {
-          walletId: modelWallet.id,
-          reference: receipt.offerId,
-          status: TransactionStatus.PENDING,
-        },
+      // Mark the pending transaction as completed
+      await tx.transaction.update({
+        where: { id: pendingTx.id },
         data: { status: TransactionStatus.COMPLETED },
       });
 
-      // Notify model
       await tx.notification.create({
         data: {
           userId: session.user.id,
           title: "Coins Redeemed! 💰",
-          message: `${modelReceives.toLocaleString()} DC has been added to your wallet balance.`,
+          message: `${coinsToRelease.toLocaleString()} DC has been added to your wallet balance.`,
           link: "/model/wallet",
         },
       });
 
-      // Notify client that meet is completed
       await tx.notification.create({
         data: {
           userId: receipt.offer.clientId,
@@ -124,13 +113,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: "Coupon redeemed successfully",
-      coinsAdded: modelReceives,
+      coinsAdded: coinsToRelease,
     });
   } catch (err: any) {
     console.error("[REDEEM ERROR]", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
