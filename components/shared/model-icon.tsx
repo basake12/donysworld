@@ -24,6 +24,7 @@ export function ModelIcon({ className }: { className?: string }) {
       className={className}
       style={{ objectFit: "contain" }}
       priority
+      unoptimized
     />
   );
 }
