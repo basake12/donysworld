@@ -7,6 +7,8 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 const nextConfig = {
   images: {
+    loader: "custom",
+    loaderFile: "./cloudinary-loader.js",
     remotePatterns: [
       {
         protocol: "https",
@@ -19,9 +21,9 @@ const nextConfig = {
         pathname: "/**",
       },
     ],
-    formats: ["image/webp", "image/avif"],
     deviceSizes: [375, 640, 750, 828, 1080, 1200],
     minimumCacheTTL: 3600,
+    // formats is intentionally removed — Cloudinary handles f_auto itself
   },
 
   // Turbopack is default in Next.js 16 — the old webpack fs fallback
