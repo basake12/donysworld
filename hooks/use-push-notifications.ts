@@ -4,24 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 type PushStatus = "unsupported" | "denied" | "prompt" | "granted" | "loading";
 
-/**
- * usePushNotifications
- *
- * Handles the full lifecycle:
- *   1. Checks if push is supported on this device/browser
- *   2. Reads current permission state
- *   3. `subscribe()` — requests permission, gets SW subscription, saves to DB
- *   4. `unsubscribe()` — removes from SW and DB
- *
- * Usage (drop into model dashboard layout or settings page):
- *
- *   const { status, subscribe, unsubscribe } = usePushNotifications();
- *
- *   if (status === "prompt")   → show "Enable notifications" button → call subscribe()
- *   if (status === "granted")  → show "Notifications on" + option to call unsubscribe()
- *   if (status === "denied")   → show "Notifications blocked in browser settings"
- *   if (status === "unsupported") → hide the feature entirely
- */
 export function usePushNotifications() {
   const [status, setStatus] = useState<PushStatus>("loading");
   const subscribedRef = useRef(false);
@@ -71,7 +53,7 @@ export function usePushNotifications() {
 
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        applicationServerKey: urlBase64ToArrayBuffer(vapidKey),
       });
 
       const json = subscription.toJSON();
@@ -123,11 +105,16 @@ export function usePushNotifications() {
   return { status, subscribe, unsubscribe };
 }
 
-// Convert VAPID public key from base64 string to Uint8Array (required by
-// the Web Push API).
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+// Convert VAPID public key from base64url string to ArrayBuffer.
+// Returning ArrayBuffer (not Uint8Array) satisfies the stricter TS types
+// on PushSubscriptionOptionsInit.applicationServerKey in TS 5.x.
+function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = window.atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  const buffer = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    buffer[i] = raw.charCodeAt(i);
+  }
+  return buffer.buffer as ArrayBuffer;
 }
