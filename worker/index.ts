@@ -20,9 +20,7 @@ self.addEventListener("push", (event) => {
     body: data.body ?? "",
     icon: "/icons/brand-logo.png",
     badge: "/icons/brand-logo.png",
-    vibrate: [200, 100, 200],
     tag: "donys-world-notification",
-    renotify: true,
     data: { url: data.url ?? "/" },
   };
 
