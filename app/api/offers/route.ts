@@ -7,11 +7,20 @@ import {
   generateRedemptionToken,
   validateOffer,
 } from "@/lib/coins";
+import { sendPushToUser } from "@/lib/web-push";
 import { MeetType, TransactionType, TransactionStatus } from "@prisma/client";
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
+
+const VALID_STATUSES = new Set(["PENDING", "ACCEPTED", "REJECTED", "COMPLETED", "CANCELLED"]);
+
+const MEET_LABEL: Record<string, string> = {
+  SHORT: "Short meet",
+  OVERNIGHT: "Overnight",
+  WEEKEND: "Weekend",
+};
 
 // ─────────────────────────────────────────────
 // POST /api/offers — client makes an offer
@@ -115,7 +124,6 @@ export async function POST(req: NextRequest) {
 
     // ── Create offer + debit client ────────────
     await prisma.$transaction(async (tx) => {
-      // Create the offer
       const offer = await tx.offer.create({
         data: {
           clientId: session.user.id,
@@ -126,13 +134,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Debit client wallet (full amount including fee)
       await tx.wallet.update({
         where: { userId: session.user.id },
         data: { balance: { decrement: fees.clientTotal } },
       });
 
-      // Record transaction
       await tx.transaction.create({
         data: {
           walletId: clientWallet.id,
@@ -144,7 +150,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Notify model
       await tx.notification.create({
         data: {
           userId: modelId,
@@ -153,6 +158,15 @@ export async function POST(req: NextRequest) {
           link: "/model/offers",
         },
       });
+    });
+
+    // ── Push notification — fire and forget, never blocks the response ──────
+    // We intentionally do NOT await this. If push fails (no subscription,
+    // network error, etc.) the offer still succeeds.
+    sendPushToUser(modelId, {
+      title: "New Offer! 💰",
+      body: `${MEET_LABEL[meetType] ?? meetType} offer of ${coinsAmount.toLocaleString()} DC. Tap to review.`,
+      url: "/model/offers",
     });
 
     return NextResponse.json(
@@ -178,7 +192,7 @@ export async function GET(req: NextRequest) {
     if (!session?.user) return errorResponse("Unauthorized", 401);
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
+    const statusParam = searchParams.get("status");
     const role = session.user.role;
 
     const whereClause: any = {};
@@ -191,8 +205,13 @@ export async function GET(req: NextRequest) {
       return errorResponse("Forbidden", 403);
     }
 
-    if (status && status !== "all") {
-      whereClause.status = status.toUpperCase();
+    // Validate status against known enum values — never pass raw user input to DB
+    if (statusParam && statusParam !== "all") {
+      const upper = statusParam.toUpperCase();
+      if (!VALID_STATUSES.has(upper)) {
+        return errorResponse("Invalid status filter");
+      }
+      whereClause.status = upper;
     }
 
     const offers = await prisma.offer.findMany({

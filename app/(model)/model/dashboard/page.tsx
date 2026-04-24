@@ -14,6 +14,7 @@ import {
 import { formatCoins, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
 import { AvailabilityToggle } from "@/components/model/availability-toggle";
+import { PushNotificationToggle } from "@/components/model/push-notification-toggle";
 
 const OFFER_STATUS_CONFIG = {
   PENDING:   { label: "Pending",   icon: Clock,        className: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
@@ -23,7 +24,6 @@ const OFFER_STATUS_CONFIG = {
   CANCELLED: { label: "Cancelled", icon: XCircle,      className: "bg-muted text-muted-foreground border-border" },
 } as const;
 
-// No hour indicators
 const MEET_TYPE_LABELS = { SHORT: "Short Meet", OVERNIGHT: "Overnight", WEEKEND: "Weekend" } as const;
 
 export default async function ModelDashboardPage() {
@@ -120,10 +120,10 @@ export default async function ModelDashboardPage() {
 
       {/* ── STATS ────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <StatsCard title="Balance"   value={formatCoins(balance)}  sub={coinsToNairaFormatted(balance)}  icon={Wallet}       trend="neutral" />
-        <StatsCard title="Pending"   value={formatCoins(pending)}  sub="Awaiting redemption"              icon={Coins}        trend="neutral" />
-        <StatsCard title="Offers"    value={String(pendingOffers)} sub="Need response"                    icon={Clock}        trend={pendingOffers > 0 ? "up" : "neutral"} />
-        <StatsCard title="Completed" value={String(completedOffers)} sub="Total meets"                  icon={CheckCircle2} trend="up" />
+        <StatsCard title="Balance"   value={formatCoins(balance)}    sub={coinsToNairaFormatted(balance)} icon={Wallet}       trend="neutral" />
+        <StatsCard title="Pending"   value={formatCoins(pending)}    sub="Awaiting redemption"            icon={Coins}        trend="neutral" />
+        <StatsCard title="Offers"    value={String(pendingOffers)}   sub="Need response"                  icon={Clock}        trend={pendingOffers > 0 ? "up" : "neutral"} />
+        <StatsCard title="Completed" value={String(completedOffers)} sub="Total meets"                    icon={CheckCircle2} trend="up" />
       </div>
 
       {/* ── RECENT OFFERS ────────────────────── */}
@@ -187,6 +187,11 @@ export default async function ModelDashboardPage() {
         <AvailabilityToggle initialValue={isAvailable} />
       )}
 
+      {/* ── PUSH NOTIFICATION TOGGLE ─────────── */}
+      {modelProfile?.status === "ACTIVE" && (
+        <PushNotificationToggle />
+      )}
+
       {/* ── QUICK ACTIONS ────────────────────── */}
       <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
         <h2 className="text-xs font-black text-foreground flex items-center gap-2">
@@ -194,10 +199,10 @@ export default async function ModelDashboardPage() {
         </h2>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { href: "/model/profile",    label: "Edit Profile",  icon: UserCircle },
-            { href: "/model/wallet",     label: "My Wallet",    icon: Wallet },
-            { href: "/model/offers",     label: "All Offers",   icon: HandCoins },
-            { href: "/model/blocklist",  label: "Blocklist",    icon: ShieldX },
+            { href: "/model/profile",   label: "Edit Profile", icon: UserCircle },
+            { href: "/model/wallet",    label: "My Wallet",    icon: Wallet },
+            { href: "/model/offers",    label: "All Offers",   icon: HandCoins },
+            { href: "/model/blocklist", label: "Blocklist",    icon: ShieldX },
           ].map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               className="flex items-center gap-2 rounded-xl border border-border bg-secondary p-2.5 hover:border-gold/30 hover:bg-gold/5 transition-all group">

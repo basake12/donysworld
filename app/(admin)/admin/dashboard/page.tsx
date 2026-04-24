@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
   Wallet, Users, Clock, CheckCircle2, ShieldCheck,
-  ArrowRight, Coins, TrendingUp, Sparkles,
+  ArrowRight, Coins, TrendingUp, Sparkles, ListOrdered,
 } from "lucide-react";
 import { formatCoins, coinsToNairaFormatted } from "@/lib/coins";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ export default async function AdminDashboardPage() {
 
   const [
     wallet, totalClients, totalModels, pendingModels,
-    recentPendingModels, totalOffers, totalRevenue,
+    recentPendingModels, totalOffers, pendingOffers, totalRevenue,
   ] = await Promise.all([
     prisma.wallet.findUnique({ where: { userId: session.user.id } }),
     prisma.user.count({ where: { role: "CLIENT" } }),
@@ -35,6 +35,7 @@ export default async function AdminDashboardPage() {
       },
     }),
     prisma.offer.count(),
+    prisma.offer.count({ where: { status: "PENDING" } }),
     prisma.transaction.aggregate({
       where: { type: { in: ["CONNECTION_FEE", "FACE_REVEAL_CREDIT"] }, status: "COMPLETED" },
       _sum: { amount: true },
@@ -74,6 +75,23 @@ export default async function AdminDashboardPage() {
         </div>
       )}
 
+      {/* ── PENDING OFFERS BANNER ─────────────── */}
+      {pendingOffers > 0 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3.5">
+          <ListOrdered className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-0.5">
+            <p className="text-xs font-bold text-blue-400">
+              {pendingOffers} pending offer{pendingOffers > 1 ? "s" : ""}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Offers awaiting model response.</p>
+          </div>
+          <Button asChild size="sm" variant="outline"
+            className="shrink-0 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 rounded-xl text-[11px] h-8 px-3">
+            <Link href="/admin/offers?status=PENDING">View</Link>
+          </Button>
+        </div>
+      )}
+
       {/* ── REVENUE HERO ─────────────────────── */}
       <div className="rounded-2xl border border-gold/20 bg-card overflow-hidden relative">
         <div className="h-1 bg-gold-gradient" />
@@ -103,10 +121,10 @@ export default async function AdminDashboardPage() {
 
       {/* ── STATS GRID ───────────────────────── */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <StatsCard title="Clients"     value={String(totalClients)} sub="Registered"  icon={Users}        trend="neutral" />
-        <StatsCard title="Models"      value={String(totalModels)}  sub="Active"      icon={ShieldCheck}  trend="neutral" />
-        <StatsCard title="Offers"      value={String(totalOffers)}  sub="Platform-wide" icon={CheckCircle2} trend="up" />
-        <StatsCard title="Pending"     value={String(pendingModels)} sub="Need review" icon={Clock}        trend={pendingModels > 0 ? "up" : "neutral"} />
+        <StatsCard title="Clients"  value={String(totalClients)}  sub="Registered"    icon={Users}         trend="neutral" />
+        <StatsCard title="Models"   value={String(totalModels)}   sub="Active"        icon={ShieldCheck}   trend="neutral" />
+        <StatsCard title="Offers"   value={String(totalOffers)}   sub="Platform-wide" icon={CheckCircle2}  trend="up" />
+        <StatsCard title="Pending"  value={String(pendingModels)} sub="Need review"   icon={Clock}         trend={pendingModels > 0 ? "up" : "neutral"} />
       </div>
 
       {/* ── PENDING APPROVALS ────────────────── */}
@@ -160,6 +178,7 @@ export default async function AdminDashboardPage() {
         <div className="grid grid-cols-2 gap-2">
           {[
             { href: "/admin/models",        label: "All Models",    icon: ShieldCheck },
+            { href: "/admin/offers",        label: "All Offers",    icon: ListOrdered },
             { href: "/admin/fund-requests", label: "Fund Requests", icon: Wallet },
             { href: "/admin/withdrawals",   label: "Withdrawals",   icon: Coins },
             { href: "/admin/wallet",        label: "Admin Wallet",  icon: TrendingUp },

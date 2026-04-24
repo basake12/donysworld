@@ -17,8 +17,10 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Wallet, Users, Bell, LogOut, Menu, HandCoins,
   UserCircle, ShieldCheck, Coins, Sun, Moon, ShieldX, ImageOff,
+  BellRing, BellOff,
 } from "lucide-react";
 import { ModelIcon } from "@/components/shared/model-icon";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { cn } from "@/lib/utils";
 
 // ─── NAV LINKS ──────────────────────────────────
@@ -41,6 +43,7 @@ const MODEL_LINKS = [
 const ADMIN_LINKS = [
   { href: "/admin/dashboard",     label: "Dashboard",   icon: LayoutDashboard },
   { href: "/admin/models",        label: "Models",      icon: ShieldCheck },
+  { href: "/admin/offers",        label: "Offers",      icon: HandCoins },
   { href: "/admin/fund-requests", label: "Funds",       icon: Wallet },
   { href: "/admin/withdrawals",   label: "Withdrawals", icon: HandCoins },
   { href: "/admin/wallet",        label: "Wallet",      icon: Coins },
@@ -60,13 +63,69 @@ interface NavbarProps {
   notificationCount?: number;
 }
 
+// ── Small inline push toggle for the dropdown ──────────────────────────────
+// Kept separate so it only mounts for MODEL users and doesn't pollute the
+// main Navbar with push-specific state.
+function ModelPushToggle() {
+  const { status, subscribe, unsubscribe } = usePushNotifications();
+
+  if (status === "unsupported") return null;
+
+  const isGranted = status === "granted";
+  const isDenied  = status === "denied";
+  const isLoading = status === "loading";
+
+  function handleClick(e: React.MouseEvent) {
+    e.preventDefault();
+    if (isDenied || isLoading) return;
+    isGranted ? unsubscribe() : subscribe();
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      className={cn(
+        "flex items-center gap-2 w-full px-2 py-1.5 rounded-xl text-sm transition-colors cursor-pointer select-none",
+        isDenied
+          ? "opacity-50 cursor-not-allowed"
+          : "hover:bg-secondary"
+      )}
+    >
+      {isGranted
+        ? <BellRing className="h-4 w-4 text-gold shrink-0" />
+        : isDenied
+        ? <BellOff className="h-4 w-4 text-muted-foreground shrink-0" />
+        : <Bell className="h-4 w-4 text-muted-foreground shrink-0" />
+      }
+      <span className="flex-1 text-foreground">
+        {isGranted ? "Notifications On" : isDenied ? "Notifications Blocked" : "Enable Notifications"}
+      </span>
+      {/* Mini toggle pill */}
+      {!isDenied && (
+        <div className={cn(
+          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0",
+          isGranted ? "bg-gold" : "bg-secondary border border-border"
+        )}>
+          <span className={cn(
+            "inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200",
+            isGranted ? "translate-x-5" : "translate-x-1"
+          )} />
+        </div>
+      )}
+      {isDenied && (
+        <span className="text-[10px] font-bold text-destructive/70 bg-destructive/10 border border-destructive/20 rounded-full px-1.5 py-0.5 shrink-0">
+          Blocked
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ✅ FIX: Prevents hydration mismatch — theme is undefined on the server,
-  // so we defer icon rendering until after the client has mounted.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -123,8 +182,7 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
         {/* Right actions */}
         <div className="flex items-center gap-2">
 
-          {/* ✅ FIX: Theme toggle — render icon only after mount to avoid SSR mismatch.
-              A consistent placeholder (Sun) is shown during SSR so both sides agree. */}
+          {/* Theme toggle */}
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground hover:text-foreground hover:border-gold/40 transition-all"
@@ -132,18 +190,15 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
             aria-label="Toggle theme"
           >
             {mounted ? (
-              theme === "dark" ? (
-                <Sun className="h-4 w-4 text-gold" />
-              ) : (
-                <Moon className="h-4 w-4 text-gold" />
-              )
+              theme === "dark"
+                ? <Sun className="h-4 w-4 text-gold" />
+                : <Moon className="h-4 w-4 text-gold" />
             ) : (
-              // Stable placeholder rendered on both server and client until mounted
               <Sun className="h-4 w-4 text-gold" />
             )}
           </button>
 
-          {/* Notifications */}
+          {/* Notifications bell */}
           <Link
             href={`/${role.toLowerCase()}/notifications`}
             className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground hover:text-foreground hover:border-gold/40 transition-all"
@@ -182,6 +237,7 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
                 </Badge>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+
               {role === "MODEL" && (
                 <>
                   <DropdownMenuItem asChild>
@@ -194,8 +250,15 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
                       <ShieldX className="h-4 w-4" />Blocklist
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {/* Push notification toggle — MODEL only */}
+                  <div className="px-1 py-0.5">
+                    <ModelPushToggle />
+                  </div>
+                  <DropdownMenuSeparator />
                 </>
               )}
+
               {role === "CLIENT" && (
                 <DropdownMenuItem asChild>
                   <Link href="/client/wallet" className="cursor-pointer gap-2 rounded-xl">
@@ -203,7 +266,9 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
                   </Link>
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator />
+
+              {role !== "MODEL" && <DropdownMenuSeparator />}
+
               <DropdownMenuItem
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-destructive focus:text-destructive cursor-pointer gap-2 rounded-xl"
@@ -231,6 +296,12 @@ export function Navbar({ session, notificationCount = 0 }: NavbarProps) {
                 </div>
                 <nav className="flex flex-col gap-1 p-3 flex-1">
                   <NavLinks onNavigate={() => setMobileOpen(false)} />
+                  {/* Push toggle in mobile sheet for MODEL */}
+                  {role === "MODEL" && (
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <ModelPushToggle />
+                    </div>
+                  )}
                 </nav>
                 <div className="border-t border-border p-3">
                   <button
